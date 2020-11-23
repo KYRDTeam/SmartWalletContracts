@@ -1,0 +1,62 @@
+{
+  "name": "smart-wallet-contracts",
+  "version": "1.0.0",
+  "description": "This repository has the main contracts for Smart Wallet.",
+  "main": "truffle.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "./tst.sh",
+    "t": "./tst.sh",
+    "compile": "./cmp.sh",
+    "c": "./cmp.sh",
+    "prettier": "./node_modules/.bin/prettier --write"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KyberNetwork/smart-contracts.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/KyberSwap/SmartWalletContracts/issues"
+  },
+  "homepage": "https://github.com/KyberSwap/SmartWalletContracts#readme",
+  "dependencies": {
+    "@kyber.network/utils-sc": "2.1.2",
+    "@openzeppelin/contracts": "3.2.0",
+    "chai-as-promised": "7.1.1",
+    "compare-versions": "3.5.1",
+    "dotenv": "^8.2.0",
+    "ethers": "5.0.4",
+    "ganache-cli": "6.8.2",
+    "mathjs": "4.4.2",
+    "rlp": "2.2.4",
+    "secp256k1": "3.8.0",
+    "sha3": "2.1.1",
+    "solc": "0.6.6",
+    "solhint": "3.0.0-rc.8",
+    "truffle-assertions": "0.7.2",
+    "truffle-flattener": "1.4.2",
+    "web3": "1.2.4",
+    "web3-utils": "1.2.4",
+    "winston": "^3.3.3",
+    "yargs": "11.1.1"
+  },
+  "devDependencies": {
+    "@nomiclabs/hardhat-ganache": "2.0.0",
+    "@nomiclabs/hardhat-truffle5": "2.0.0",
+    "@nomiclabs/hardhat-web3": "2.0.0",
+    "@openzeppelin/test-helpers": "0.5.6",
+    "@uniswap/v2-periphery": "1.1.0-beta.0",
+    "chai": "4.2.0",
+    "chai-bn": "0.2.0",
+    "got": "^11.1.0",
+    "hardhat": "2.0.3",
+    "mv": "2.1.1",
+    "prettier": "2.0.4",
+    "prettier-plugin-solidity": "1.0.0-alpha.54",
+    "solidity-coverage": "0.7.5"
+  }
+}
