@@ -11,31 +11,6 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     using SafeERC20 for IERC20Ext;
     using SafeMath for uint256;
 
-    event KyberTrade(
-        IERC20Ext indexed src,
-        IERC20Ext indexed dest,
-        uint256 srcAmount,
-        uint256 minConversionRate,
-        address recipient,
-        uint256 platformFeeBps,
-        address platformWallet,
-        bytes hint,
-        bool useGasToken,
-        uint numberGasBurns
-    );
-
-    event UniswapTrade(
-        address indexed router,
-        address[] tradePath,
-        uint256 srcAmount,
-        uint256 minDestAmount,
-        address recipient,
-        uint256 platformFeeBps,
-        address platformWallet,
-        bool useGasToken,
-        uint numberGasBurns
-    );
-
     event SupportedPlatformWalletsUpdated(
         address[] indexed wallets,
         bool indexed isSupported
@@ -362,6 +337,16 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                 "",
                 input.gasBeforeTrade
             );
+        }
+
+        if (input.platformWallet != address(this) && input.srcAmountFee > 0) {
+            // transfer fee to platform wallet
+            if (src == ETH_TOKEN_ADDRESS) {
+                (bool success, ) = input.platformWallet.call{ value: input.srcAmountFee }("");
+                require(success, "transfer eth to platform wallet failed");
+            } else {
+                src.safeTransfer(input.platformWallet, input.srcAmountFee);
+            }
         }
 
         emit UniswapTrade(

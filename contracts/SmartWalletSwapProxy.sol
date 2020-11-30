@@ -6,8 +6,6 @@ import "./SmartWalletSwapStorage.sol";
 
 contract SmartWalletSwapProxy is SmartWalletSwapStorage {
 
-    address public implementation;
-
     event ImplementationUpdated(address indexed implementation);
 
     constructor(address _admin, address _implementation) public SmartWalletSwapStorage(_admin) {

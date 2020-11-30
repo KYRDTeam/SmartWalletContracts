@@ -32,5 +32,7 @@ contract SmartWalletSwapStorage is Utils, Withdrawable, ReentrancyGuard {
         uint256 gasBeforeTrade;
     }
 
+    address public implementation;
+
     constructor(address _admin) public Withdrawable(_admin) {}
 }
