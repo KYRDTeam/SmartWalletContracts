@@ -50,6 +50,7 @@ contract('SmartWalletSwapImplementation', accounts => {
       await swapProxy.updateKyberProxy(kyberProxy, { from: admin });
       await swapProxy.updateUniswapRouters([uniswapRouter, sushiswapRouter], true, { from: admin });
       await swapProxy.updateSupportedPlatformWallets([user], true, { from: admin });
+      await swapProxy.updateBurnGasHelper(burnGasHelper.address, { from: admin });
 
       // mint and transfer gas token to user
       let gasToken = await GasToken.at(gasTokenAddress);

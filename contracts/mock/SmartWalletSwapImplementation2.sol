@@ -55,6 +55,7 @@ contract SmartWalletSwapImplementation2 is SmartWalletSwapImplementation {
     }
 
     function validateAndPrepareSourceAmount(
+        address protocol,
         IERC20Ext src,
         uint256 srcAmount,
         address platformWallet
@@ -72,6 +73,12 @@ contract SmartWalletSwapImplementation2 is SmartWalletSwapImplementation {
             require(balanceAfter >= balanceBefore, "invalid balance");
             // prevent case of token with fee
             actualSrcAmount = balanceAfter - balanceBefore;
+
+            // check if need to approve allowance to protocol
+            // only allow when it is zero
+            if (src.allowance(address(this), protocol) == 0) {
+                src.safeApprove(protocol, MAX_ALLOWANCE);
+            }
         }
     }
 }

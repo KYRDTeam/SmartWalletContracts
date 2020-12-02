@@ -20,6 +20,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         IUniswapV2Router02[] indexed uniswapRouters,
         bool isAdded
     );
+    event UpdatedBurnGasHelper(IBurnGasHelper indexed gasHelper);
     event ApproveAllowances(
         IERC20Ext[] indexed tokens,
         address[] indexed spenders,
@@ -41,6 +42,13 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         }
         kyberProxy = _kyberProxy;
         burnGasHelper = _burnGasHelper;
+    }
+
+    function updateBurnGasHelper(IBurnGasHelper _burnGasHelper) external onlyAdmin {
+        if (burnGasHelper != _burnGasHelper) {
+            burnGasHelper = _burnGasHelper;
+            emit UpdatedBurnGasHelper(_burnGasHelper);
+        }
     }
 
     function updateKyberProxy(IKyberProxy _kyberProxy) external onlyAdmin {
@@ -129,7 +137,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             gasBeforeTrade: useGasToken ? gasleft() : 0
         });
 
-        input.srcAmount = validateAndPrepareSourceAmount(src, srcAmount, platformWallet);
+        input.srcAmount = validateAndPrepareSourceAmount(address(kyberProxy), src, srcAmount, platformWallet);
         destAmount = doKyberTrade(src, dest, input);
     }
 
@@ -165,7 +173,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
 
         IERC20Ext src = IERC20Ext(tradePath[0]);
 
-        input.srcAmount = validateAndPrepareSourceAmount(src, srcAmount, platformWallet);
+        input.srcAmount = validateAndPrepareSourceAmount(address(router), src, srcAmount, platformWallet);
         input.srcAmountFee = input.srcAmount.mul(platformFeeBps).div(BPS);
 
         destAmount = doUniswapTrade(
@@ -324,6 +332,17 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                 );
             }
         }
+
+        if (input.platformWallet != address(this) && input.srcAmountFee > 0) {
+            // transfer fee to platform wallet
+            if (src == ETH_TOKEN_ADDRESS) {
+                (bool success, ) = input.platformWallet.call{ value: input.srcAmountFee }("");
+                require(success, "transfer eth to platform wallet failed");
+            } else {
+                src.safeTransfer(input.platformWallet, input.srcAmountFee);
+            }
+        }
+
         destAmount = amounts[path.length - 1];
         uint256 numberGasBurns = 0;
         if (input.useGasToken && burnGasHelper != IBurnGasHelper(0)) {
@@ -337,16 +356,6 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                 "",
                 input.gasBeforeTrade
             );
-        }
-
-        if (input.platformWallet != address(this) && input.srcAmountFee > 0) {
-            // transfer fee to platform wallet
-            if (src == ETH_TOKEN_ADDRESS) {
-                (bool success, ) = input.platformWallet.call{ value: input.srcAmountFee }("");
-                require(success, "transfer eth to platform wallet failed");
-            } else {
-                src.safeTransfer(input.platformWallet, input.srcAmountFee);
-            }
         }
 
         emit UniswapTrade(
@@ -363,6 +372,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     }
 
     function validateAndPrepareSourceAmount(
+        address protocol,
         IERC20Ext src,
         uint256 srcAmount,
         address platformWallet
@@ -379,6 +389,12 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             require(balanceAfter >= balanceBefore, "invalid balance");
             // prevent case of token with fee
             actualSrcAmount = balanceAfter - balanceBefore;
+
+            // check if need to approve allowance to protocol
+            // only allow when it is zero
+            if (src.allowance(address(this), protocol) == 0) {
+                src.safeApprove(protocol, MAX_ALLOWANCE);
+            }
         }
     }
 
