@@ -411,16 +411,13 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         IGasToken gasToken;
         uint256 gasAfter = gasleft();
 
+        bytes memory data = abi.encode(
+            msg.sender, protocol, srcAmount, path, recipient, platformFeeBps, platformWallet, hint
+        );
+
         try burnGasHelper.getAmountGasTokensToBurn(
-            msg.sender,
-            protocol,
-            srcAmount,
-            path,
-            recipient,
-            platformFeeBps,
-            platformWallet,
-            hint,
-            gasBefore.sub(gasAfter)
+            gasBefore.sub(gasAfter),
+            data
         ) returns(uint _gasBurns, address _gasToken) {
             numBurnTokens = _gasBurns;
             gasToken = IGasToken(_gasToken);

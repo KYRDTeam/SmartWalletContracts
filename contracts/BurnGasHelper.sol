@@ -64,15 +64,8 @@ contract BurnGasHelper is IBurnGasHelper, Utils, Withdrawable {
     }
 
     function getAmountGasTokensToBurn(
-        address, // trader
-        address, // protocol
-        uint256, // srcAmount
-        address[] calldata, // tradePath,
-        address, // recipient,
-        uint256, // platformFee,
-        address, // platformWallet,
-        bytes calldata, // hint,
-        uint256 gasConsumption
+        uint gasConsumption,
+        bytes calldata // data
     ) external override view returns(uint numGas, address gasToken) {
 
         uint256 gas = gasleft();
