@@ -9,7 +9,7 @@ interface ISmartWalletSwapImplementation {
         IERC20Ext indexed src,
         IERC20Ext indexed dest,
         uint256 srcAmount,
-        uint256 minConversionRate,
+        uint256 destAmount,
         address recipient,
         uint256 platformFeeBps,
         address platformWallet,
@@ -22,7 +22,7 @@ interface ISmartWalletSwapImplementation {
         address indexed router,
         address[] tradePath,
         uint256 srcAmount,
-        uint256 minDestAmount,
+        uint256 destAmount,
         address recipient,
         uint256 platformFeeBps,
         address platformWallet,
@@ -69,6 +69,29 @@ interface ISmartWalletSwapImplementation {
         uint256 minDestAmount,
         address[] calldata tradePath,
         address payable recipient,
+        uint256 platformFee,
+        address payable platformWallet,
+        bool useGasToken
+    ) external payable returns (uint256 destAmount);
+
+    function swapKyberAndDepositAave(
+        bool isNewVersion,
+        IERC20Ext src,
+        IERC20Ext dest,
+        uint256 srcAmount,
+        uint256 minConversionRate,
+        uint256 platformFee,
+        address payable platformWallet,
+        bytes calldata hint,
+        bool useGasToken
+    ) external payable returns (uint256 destAmount);
+
+    function swapUniswapAndDepositAave(
+        bool isNewVersion,
+        IUniswapV2Router02 router,
+        uint256 srcAmount,
+        uint256 minDestAmount,
+        address[] calldata tradePath,
         uint256 platformFee,
         address payable platformWallet,
         bool useGasToken

@@ -1,6 +1,6 @@
 pragma solidity 0.6.6;
 
-import "../SmartWalletSwapImplementation.sol";
+import "../exchange/SmartWalletSwapImplementation.sol";
 
 
 /// Version 2 of implementation to test upgrade
@@ -41,12 +41,7 @@ contract SmartWalletSwapImplementation2 is SmartWalletSwapImplementation {
     event UpdateUniswapRouters(IUniswapV2Router02[] indexed uniswapRouters, bool isAdded);
     event ApproveAllowances(IERC20Ext[] indexed tokens, address[] indexed spenders, bool isReset);
 
-    constructor(
-        address _admin, IKyberProxy _kyberProxy,
-        IUniswapV2Router02[] memory _uniswapRouters,
-        IBurnGasHelper _burnGasHelper
-    )
-        public SmartWalletSwapImplementation(_admin, _kyberProxy, _uniswapRouters, _burnGasHelper) {}
+    constructor(address _admin) public SmartWalletSwapImplementation(_admin) {}
 
     function updateUserBlocked(address[] calldata users, bool isBlocked) external onlyAdmin {
         for(uint256 i = 0; i < users.length; i++) {

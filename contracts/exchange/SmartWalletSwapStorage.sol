@@ -1,8 +1,11 @@
 pragma solidity 0.6.6;
 
-import "./IBurnGasHelper.sol";
-import "./interfaces/IKyberProxy.sol";
-import "./interfaces/IGasToken.sol";
+import "../burnHelper/IBurnGasHelper.sol";
+import "../interfaces/IKyberProxy.sol";
+import "../interfaces/IGasToken.sol";
+import "../interfaces/IAaveLendingPoolV2.sol";
+import "../interfaces/IAaveLendingPoolV1.sol";
+import "../interfaces/IWeth.sol";
 import "@kyber.network/utils-sc/contracts/Utils.sol";
 import "@kyber.network/utils-sc/contracts/Withdrawable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -28,9 +31,16 @@ contract SmartWalletSwapStorage is Utils, Withdrawable, ReentrancyGuard {
         uint256 platformFeeBps;
         address payable platformWallet;
         bytes hint;
-        bool useGasToken;
-        uint256 gasBeforeTrade;
     }
+
+    struct AaveLendingPoolData {
+        IAaveLendingPoolV2 lendingPoolV2;
+        IWeth weth;
+        IAaveLendingPoolV1 lendingPoolV1;
+        uint16 referalCode;
+    }
+
+    AaveLendingPoolData public aaveLendingPool;
 
     address public implementation;
 

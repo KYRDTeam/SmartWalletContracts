@@ -36,9 +36,7 @@ contract('SmartWalletSwapImplementation', accounts => {
       burnGasHelper = await BurnGasHelper.new(
         admin, gasTokenAddress, 14154, 6870, 24000
       );
-      swapImplementation = await SmartWalletSwapImplementation.new(
-        admin, kyberProxy, [], burnGasHelper.address
-      );
+      swapImplementation = await SmartWalletSwapImplementation.new(admin);
       swapProxy = await SmartWalletSwapProxy.new(admin, swapImplementation.address);
       swapProxy = await SmartWalletSwapImplementation.at(swapProxy.address);
 

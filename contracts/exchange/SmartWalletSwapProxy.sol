@@ -1,6 +1,5 @@
 pragma solidity 0.6.6;
 
-import "@kyber.network/utils-sc/contracts/Withdrawable.sol";
 import "./SmartWalletSwapStorage.sol";
 
 
