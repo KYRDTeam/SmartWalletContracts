@@ -43,7 +43,7 @@ interface ISmartWalletSwapImplementation {
         uint256 expectedRate
     );
 
-    enum DepositType { AAVE_V1, AAVE_V2, COMPOUND }
+    enum LendingPlatform { AAVE_V1, AAVE_V2, COMPOUND }
 
     function getExpectedReturnUniswap(
         IUniswapV2Router02 router,
@@ -79,7 +79,7 @@ interface ISmartWalletSwapImplementation {
     ) external payable returns (uint256 destAmount);
 
     function swapKyberAndDeposit(
-        DepositType depositType,
+        LendingPlatform depositType,
         IERC20Ext src,
         IERC20Ext dest,
         uint256 srcAmount,
@@ -91,7 +91,7 @@ interface ISmartWalletSwapImplementation {
     ) external payable returns (uint256 destAmount);
 
     function swapUniswapAndDeposit(
-        DepositType depositType,
+        LendingPlatform platform,
         IUniswapV2Router02 router,
         uint256 srcAmount,
         uint256 minDestAmount,
@@ -100,4 +100,11 @@ interface ISmartWalletSwapImplementation {
         address payable platformWallet,
         bool useGasToken
     ) external payable returns (uint256 destAmount);
+
+    function withdrawFromLendingPlatform(
+        LendingPlatform platform,
+        IERC20Ext token,
+        uint256 amount,
+        bool useGasToken
+    ) external returns (uint256 returnedAmount);
 }

@@ -42,6 +42,8 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
 
     constructor(address _admin) public SmartWalletSwapStorage(_admin) {}
 
+    receive() external payable {}
+
     function updateBurnGasHelper(IBurnGasHelper _burnGasHelper) external onlyAdmin {
         if (burnGasHelper != _burnGasHelper) {
             burnGasHelper = _burnGasHelper;
@@ -189,7 +191,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     }
 
     function swapKyberAndDeposit(
-        DepositType depositType,
+        LendingPlatform platform,
         IERC20Ext src,
         IERC20Ext dest,
         uint256 srcAmount,
@@ -199,7 +201,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         bytes calldata hint,
         bool useGasToken
     )
-        external override payable returns (uint256 destAmount)
+        external override nonReentrant payable returns (uint256 destAmount)
     {
         uint256 gasBefore = useGasToken ? gasleft() : 0;
         if (src == dest) {
@@ -223,12 +225,22 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             );
         }
 
-        depositAndBurnGas(depositType, dest, destAmount, useGasToken, gasBefore);
+        depositAndBurnGas(platform, dest, destAmount, useGasToken, gasBefore);
         // TODO: Emit event
     }
 
+    /// @dev swap Uniswap then deposit to platform
+    ///     if tradePath has only 1 token, don't need to do swap
+    /// @param platform platform to deposit
+    /// @param router which Uni-clone to use for swapping
+    /// @param srcAmount amount of src token
+    /// @param minDestAmount minimal accepted dest amount
+    /// @param tradePath path of the trade on Uniswap
+    /// @param platformFeeBps fee if swapping
+    /// @param platformWallet wallet to receive fee
+    /// @param useGasToken whether to use gas token or not
     function swapUniswapAndDeposit(
-        DepositType depositType,
+        LendingPlatform platform,
         IUniswapV2Router02 router,
         uint256 srcAmount,
         uint256 minDestAmount,
@@ -255,7 +267,86 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             );
         }
 
-        depositAndBurnGas(depositType, dest, destAmount, useGasToken, gasBefore);
+        depositAndBurnGas(platform, dest, destAmount, useGasToken, gasBefore);
+        // TODO: Emit event
+    }
+
+    /// @dev withdraw token from Lending platforms (AAVE, COMPOUND)
+    /// @param platform platform to withdraw token
+    /// @param token underlying token to withdraw, e.g ETH, USDT, DAI
+    /// @param amount amount of cToken (COMPOUND) or aToken (AAVE) to withdraw
+    /// @param useGasToken whether to use gas token or not
+    function withdrawFromLendingPlatform(
+        LendingPlatform platform,
+        IERC20Ext token,
+        uint256 amount,
+        bool useGasToken
+    )
+        external override nonReentrant returns (uint256 returnedAmount)
+    {
+        uint256 gasBefore = useGasToken ? gasleft() : 0;
+        uint256 tokenBalanceBefore;
+        uint256 tokenBalanceAfter;
+        if (platform == LendingPlatform.AAVE_V1) {
+            IAaveLendingPoolV1 poolV1 = aaveLendingPool.lendingPoolV1;
+            address aToken = ILendingPoolCore(poolV1.core()).getReserveATokenAddress(address(token));
+            // collect aToken
+            IERC20Ext(aToken).safeTransferFrom(msg.sender, address(this), amount);
+            // burn aToken to withdraw underlying token
+            tokenBalanceBefore = getBalance(token, address(this));
+            IAToken(aToken).redeem(amount);
+            tokenBalanceAfter = getBalance(token, address(this));
+            returnedAmount = tokenBalanceAfter.sub(tokenBalanceBefore);
+            // transfer token to user
+            transferToken(msg.sender, token, returnedAmount);
+        } else if (platform == LendingPlatform.AAVE_V2) {
+            // TODO: Find a way to get correct aToken address
+            // IAaveLendingPoolV2 poolV2 = aaveLendingPool.lendingPoolV2;
+            // if (token == ETH_TOKEN_ADDRESS) {
+            //     // withdraw weth, then convert to eth for user
+            //     address weth = address(aaveLendingPool.weth);
+            //     // collect aToken to burn
+            //     address aToken = poolV2.getReserveData(weth).aTokenAddress;
+            //     IERC20Ext(aToken).safeTransferFrom(msg.sender, address(this), amount);
+
+            //     // withdraw underlying token from pool
+            //     tokenBalanceBefore = IERC20Ext(weth).balanceOf(address(this));
+            //     returnedAmount = aaveLendingPool.lendingPoolV2.withdraw(weth, amount, address(this));
+            //     tokenBalanceAfter = IERC20Ext(weth).balanceOf(address(this));
+            //     require(tokenBalanceAfter.sub(tokenBalanceBefore) >= returnedAmount, "invalid return");
+
+            //     // convert weth to eth and transfer to sender
+            //     IWeth(weth).withdraw(returnedAmount);
+            //     (bool success, ) = msg.sender.call { value: returnedAmount }("");
+            //     require(success, "transfer eth to sender failed");
+            // } else {
+            //     // collect aToken
+            //     address aToken = poolV2.getReserveData(address(token)).aTokenAddress;
+            //     IERC20Ext(aToken).safeTransferFrom(msg.sender, address(this), amount);
+            //     // withdraw token directly to user's wallet
+            //     tokenBalanceBefore = getBalance(token, msg.sender);
+            //     returnedAmount = aaveLendingPool.lendingPoolV2.withdraw(address(token), amount, msg.sender);
+            //     tokenBalanceAfter = getBalance(token, msg.sender);
+            //     // valid received amount in msg.sender
+            //     require(tokenBalanceAfter.sub(tokenBalanceBefore) >= returnedAmount, "invalid return");
+            // }
+        } else {
+            // COMPOUND
+            // collect cToken
+            address cToken = compoundData.cTokens[token];
+            IERC20Ext(cToken).safeTransferFrom(msg.sender, address(this), amount);
+            // burn cToken to withdraw underlying token
+            tokenBalanceBefore = getBalance(token, address(this));
+            returnedAmount = ICompErc20(cToken).redeem(amount);
+            tokenBalanceAfter = getBalance(token, address(this));
+            require(tokenBalanceAfter.sub(tokenBalanceBefore) >= returnedAmount, "invalid return");
+            // transfer underlying token to user
+            transferToken(msg.sender, token, returnedAmount);
+        }
+        uint256 numGasBurns;
+        if (useGasToken) {
+            numGasBurns = burnGasTokensAfterTrade(gasBefore);
+        }
         // TODO: Emit event
     }
 
@@ -480,16 +571,15 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             uint256 balanceBefore = src.balanceOf(address(this));
             src.safeTransferFrom(msg.sender, address(this), srcAmount);
             uint256 balanceAfter = src.balanceOf(address(this));
-            require(balanceAfter >= balanceBefore, "invalid balance");
-            // prevent case of token with fee
-            actualSrcAmount = balanceAfter - balanceBefore;
+            actualSrcAmount = balanceAfter.sub(balanceBefore);
+            require(actualSrcAmount > 0);
 
             safeApproveAllowance(protocol, src);
         }
     }
 
     function depositAndBurnGas(
-        DepositType depositType,
+        LendingPlatform platform,
         IERC20Ext token,
         uint256 amount,
         bool useGasToken,
@@ -497,7 +587,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     )
         internal returns (uint256 numberGasBurns)
     {
-        if (depositType == DepositType.AAVE_V1) {
+        if (platform == LendingPlatform.AAVE_V1) {
             IAaveLendingPoolV1 poolV1 = aaveLendingPool.lendingPoolV1;
             IERC20Ext aToken = IERC20Ext(ILendingPoolCore(poolV1.core()).getReserveATokenAddress(address(token)));
             require(aToken != IERC20Ext(0), "aToken not found");
@@ -511,10 +601,9 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                 address(token), amount, aaveLendingPool.referalCode
             );
             uint256 aTokenBalanceAfter = aToken.balanceOf(address(this));
-            require(aTokenBalanceAfter >= aTokenBalanceBefore, "aToken is not transferred back");
             // transfer all received aToken back to the sender
-            aToken.safeTransfer(msg.sender, aTokenBalanceAfter - aTokenBalanceBefore);
-        } else if (depositType == DepositType.AAVE_V2) {
+            aToken.safeTransfer(msg.sender, aTokenBalanceAfter.sub(aTokenBalanceBefore));
+        } else if (platform == LendingPlatform.AAVE_V2) {
             if (token == ETH_TOKEN_ADDRESS) {
                 // wrap eth -> weth, then deposit
                 IWeth weth = aaveLendingPool.weth;
@@ -539,8 +628,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                 require(ICompErc20(cToken).mint(amount) == 0, "can not mint cToken");
             }
             uint256 cTokenBalanceAfter = IERC20Ext(cToken).balanceOf(address(this));
-            require(cTokenBalanceAfter >= cTokenBalanceBefore, "invalid balance after");
-            IERC20Ext(cToken).safeTransfer(msg.sender, cTokenBalanceAfter - cTokenBalanceBefore);
+            IERC20Ext(cToken).safeTransfer(msg.sender, cTokenBalanceAfter.sub(cTokenBalanceBefore));
         }
         if (useGasToken) {
             numberGasBurns = burnGasTokensAfterTrade(gasBefore);
@@ -573,6 +661,15 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     function safeApproveAllowance(address spender, IERC20Ext token) internal {
         if (token.allowance(address(this), spender) == 0) {
             token.safeApprove(spender, MAX_ALLOWANCE);
+        }
+    }
+
+    function transferToken(address payable recipient, IERC20Ext token, uint256 amount) internal {
+        if (token == ETH_TOKEN_ADDRESS) {
+            (bool success, ) = recipient.call { value: amount }("");
+            require(success, "failed to transfer eth");
+        } else {
+            token.safeTransfer(recipient, amount);
         }
     }
 }

@@ -17,3 +17,7 @@ interface IAaveLendingPoolV1 {
         payable;
     function core() external view returns (address);
 }
+
+interface IAToken {
+    function redeem(uint256 _amount) external;
+}
