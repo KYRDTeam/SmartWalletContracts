@@ -6,6 +6,7 @@ import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 
 interface ISmartWalletSwapImplementation {
     event KyberTrade(
+        address indexed trader,
         IERC20Ext indexed src,
         IERC20Ext indexed dest,
         uint256 srcAmount,
@@ -19,6 +20,7 @@ interface ISmartWalletSwapImplementation {
     );
 
     event UniswapTrade(
+        address indexed trader,
         address indexed router,
         address[] tradePath,
         uint256 srcAmount,
@@ -34,18 +36,20 @@ interface ISmartWalletSwapImplementation {
         IERC20Ext src,
         IERC20Ext dest,
         uint256 srcAmount,
-        uint256 platformFee,
+        uint256 platformFeeBps,
         bytes calldata hint
     ) external view returns (
         uint256 destAmount,
         uint256 expectedRate
     );
 
+    enum DepositType { AAVE_V1, AAVE_V2, COMPOUND }
+
     function getExpectedReturnUniswap(
         IUniswapV2Router02 router,
         uint256 srcAmount,
         address[] calldata tradePath,
-        uint256 platformFee
+        uint256 platformFeeBps
     ) external view returns (
         uint256 destAmount,
         uint256 expectedRate
@@ -57,7 +61,7 @@ interface ISmartWalletSwapImplementation {
         uint256 srcAmount,
         uint256 minConversionRate,
         address payable recipient,
-        uint256 platformFee,
+        uint256 platformFeeBps,
         address payable platformWallet,
         bytes calldata hint,
         bool useGasToken
@@ -69,30 +73,30 @@ interface ISmartWalletSwapImplementation {
         uint256 minDestAmount,
         address[] calldata tradePath,
         address payable recipient,
-        uint256 platformFee,
+        uint256 platformFeeBps,
         address payable platformWallet,
         bool useGasToken
     ) external payable returns (uint256 destAmount);
 
-    function swapKyberAndDepositAave(
-        bool isNewVersion,
+    function swapKyberAndDeposit(
+        DepositType depositType,
         IERC20Ext src,
         IERC20Ext dest,
         uint256 srcAmount,
         uint256 minConversionRate,
-        uint256 platformFee,
+        uint256 platformFeeBps,
         address payable platformWallet,
         bytes calldata hint,
         bool useGasToken
     ) external payable returns (uint256 destAmount);
 
-    function swapUniswapAndDepositAave(
-        bool isNewVersion,
+    function swapUniswapAndDeposit(
+        DepositType depositType,
         IUniswapV2Router02 router,
         uint256 srcAmount,
         uint256 minDestAmount,
         address[] calldata tradePath,
-        uint256 platformFee,
+        uint256 platformFeeBps,
         address payable platformWallet,
         bool useGasToken
     ) external payable returns (uint256 destAmount);

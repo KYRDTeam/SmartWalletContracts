@@ -28,6 +28,12 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         uint16 referalCode,
         IWeth weth
     );
+    event UpdatedCompoudData(
+        address compToken,
+        address cEth,
+        address[] cTokens,
+        IERC20Ext[] underlyingTokens
+    );
     event ApproveAllowances(
         IERC20Ext[] indexed tokens,
         address[] indexed spenders,
@@ -57,10 +63,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         uint16 referalCode,
         IWeth weth
     ) external onlyAdmin {
-        // Note: May be no validation here in case we only support v1 or v2
-        // require(poolV2 != IAaveLendingPoolV2(0), "invalid aave lending pool v2");
-        // require(poolV1 != IAaveLendingPoolV1(0), "invalid aave lending pool v1");
-        // require(weth != IWeth(0), "invalid weth");
+        require(weth != IWeth(0), "invalid weth");
         aaveLendingPool = AaveLendingPoolData({
             lendingPoolV2: poolV2,
             lendingPoolV1: poolV1,
@@ -68,6 +71,23 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             weth: weth
         });
         emit UpdatedAaveLendingPool(poolV2, poolV1, referalCode, weth);
+    }
+
+    function updateCompoundData(address _comToken, address _cEth, address[] calldata _cTokens)
+        external onlyAdmin
+    {
+        require(_comToken != address(0), "invalid comp token");
+        require(_cEth != address(0), "invalid cEth");
+        compoundData.compToken = _comToken;
+        compoundData.cTokens[ETH_TOKEN_ADDRESS] = _cEth;
+        IERC20Ext[] memory tokens = new IERC20Ext[](_cTokens.length);
+        for(uint256 i = 0; i < _cTokens.length; i++) {
+            require(_cTokens[i] != address(0), "invalid cToken");
+            tokens[i] = IERC20Ext(ICompErc20(_cTokens[i]).underlying());
+            require(tokens[i] != IERC20Ext(0), "invalid underlying token");
+            compoundData.cTokens[tokens[i]] = _cTokens[i];
+        }
+        emit UpdatedCompoudData(_comToken, _cEth, _cTokens, tokens);
     }
 
     /// @dev can support to trade with Uniswap or its clone, for example: Sushiswap, SashimiSwap
@@ -80,10 +100,8 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         for(uint256 i = 0; i < _uniswapRouters.length; i++) {
             require(_uniswapRouters[i] != IUniswapV2Router02(0), "invalid UniswapRouter");
             if (isAdded) {
-                require(!isRouterSupported[_uniswapRouters[i]], "duplicated router");
                 isRouterSupported[_uniswapRouters[i]] = true;
             } else {
-                require(isRouterSupported[_uniswapRouters[i]], "router not found");
                 isRouterSupported[_uniswapRouters[i]] = false;
             }
         }
@@ -156,6 +174,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             numberGasBurns = burnGasTokensAfterTrade(gasBefore);
         }
         emit KyberTrade(
+            msg.sender,
             src,
             dest,
             srcAmount,
@@ -169,8 +188,8 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         );
     }
 
-    function swapKyberAndDepositAave(
-        bool isNewVersion,
+    function swapKyberAndDeposit(
+        DepositType depositType,
         IERC20Ext src,
         IERC20Ext dest,
         uint256 srcAmount,
@@ -183,22 +202,33 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         external override payable returns (uint256 destAmount)
     {
         uint256 gasBefore = useGasToken ? gasleft() : 0;
-        destAmount = doKyberTrade(
-            src,
-            dest,
-            srcAmount,
-            minConversionRate,
-            payable(address(this)),
-            platformFeeBps,
-            platformWallet,
-            hint
-        );
-        depositAaveAndBurnGas(isNewVersion, dest, destAmount, useGasToken, gasBefore);
+        if (src == dest) {
+            // just collect src token, no need to swap
+            destAmount = validateAndPrepareSourceAmount(
+                address(kyberProxy),
+                src,
+                srcAmount,
+                platformWallet
+            );
+        } else {
+            destAmount = doKyberTrade(
+                src,
+                dest,
+                srcAmount,
+                minConversionRate,
+                payable(address(this)),
+                platformFeeBps,
+                platformWallet,
+                hint
+            );
+        }
+
+        depositAndBurnGas(depositType, dest, destAmount, useGasToken, gasBefore);
         // TODO: Emit event
     }
 
-    function swapUniswapAndDepositAave(
-        bool isNewVersion,
+    function swapUniswapAndDeposit(
+        DepositType depositType,
         IUniswapV2Router02 router,
         uint256 srcAmount,
         uint256 minDestAmount,
@@ -211,10 +241,22 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     {
         uint256 gasBefore = useGasToken ? gasleft() : 0;
         IERC20Ext dest = IERC20Ext(tradePath[tradePath.length - 1]);
-        destAmount = swapUniswap(
-            router, srcAmount, minDestAmount, tradePath, payable(address(this)), platformFeeBps, platformWallet, false
-        );
-        depositAaveAndBurnGas(isNewVersion, dest, destAmount, useGasToken, gasBefore);
+        if (tradePath.length == 1) {
+            // just collect src token, no need to swap
+            destAmount = validateAndPrepareSourceAmount(
+                address(router),
+                dest,
+                srcAmount,
+                platformWallet
+            );
+        } else {
+            destAmount = swapUniswap(
+                router, srcAmount, minDestAmount, tradePath, payable(address(this)), platformFeeBps, platformWallet, false
+            );
+        }
+
+        depositAndBurnGas(depositType, dest, destAmount, useGasToken, gasBefore);
+        // TODO: Emit event
     }
 
     /// @dev get expected return and conversion rate if using Kyber
@@ -324,6 +366,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         }
 
         emit UniswapTrade(
+            msg.sender,
             address(router),
             tradePath,
             input.srcAmount,
@@ -445,23 +488,16 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         }
     }
 
-    function depositAaveAndBurnGas(bool isNewVersion, IERC20Ext token, uint256 amount, bool useGasToken, uint256 gasBefore)
+    function depositAndBurnGas(
+        DepositType depositType,
+        IERC20Ext token,
+        uint256 amount,
+        bool useGasToken,
+        uint256 gasBefore
+    )
         internal returns (uint256 numberGasBurns)
     {
-        if (isNewVersion) {
-            if (token == ETH_TOKEN_ADDRESS) {
-                // wrap eth -> weth, then deposit
-                IWeth weth = aaveLendingPool.weth;
-                IAaveLendingPoolV2 pool = aaveLendingPool.lendingPoolV2;
-                weth.deposit{ value: amount }();
-                safeApproveAllowance(address(pool), weth);
-                pool.deposit(address(weth), amount, msg.sender, aaveLendingPool.referalCode);
-            } else {
-                IAaveLendingPoolV2 pool = aaveLendingPool.lendingPoolV2;
-                safeApproveAllowance(address(pool), token);
-                pool.deposit(address(token), amount, msg.sender, aaveLendingPool.referalCode);
-            }
-        } else {
+        if (depositType == DepositType.AAVE_V1) {
             IAaveLendingPoolV1 poolV1 = aaveLendingPool.lendingPoolV1;
             IERC20Ext aToken = IERC20Ext(ILendingPoolCore(poolV1.core()).getReserveATokenAddress(address(token)));
             require(aToken != IERC20Ext(0), "aToken not found");
@@ -478,6 +514,33 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             require(aTokenBalanceAfter >= aTokenBalanceBefore, "aToken is not transferred back");
             // transfer all received aToken back to the sender
             aToken.safeTransfer(msg.sender, aTokenBalanceAfter - aTokenBalanceBefore);
+        } else if (depositType == DepositType.AAVE_V2) {
+            if (token == ETH_TOKEN_ADDRESS) {
+                // wrap eth -> weth, then deposit
+                IWeth weth = aaveLendingPool.weth;
+                IAaveLendingPoolV2 pool = aaveLendingPool.lendingPoolV2;
+                weth.deposit{ value: amount }();
+                safeApproveAllowance(address(pool), weth);
+                pool.deposit(address(weth), amount, msg.sender, aaveLendingPool.referalCode);
+            } else {
+                IAaveLendingPoolV2 pool = aaveLendingPool.lendingPoolV2;
+                safeApproveAllowance(address(pool), token);
+                pool.deposit(address(token), amount, msg.sender, aaveLendingPool.referalCode);
+            }
+        } else {
+            // COMPOUND
+            address cToken = compoundData.cTokens[token];
+            require(cToken != address(0), "token is not supported by Compound");
+            uint256 cTokenBalanceBefore = IERC20Ext(cToken).balanceOf(address(this));
+            if (token == ETH_TOKEN_ADDRESS) {
+                ICompEth(cToken).mint { value: amount }();
+            } else {
+                safeApproveAllowance(cToken, token);
+                require(ICompErc20(cToken).mint(amount) == 0, "can not mint cToken");
+            }
+            uint256 cTokenBalanceAfter = IERC20Ext(cToken).balanceOf(address(this));
+            require(cTokenBalanceAfter >= cTokenBalanceBefore, "invalid balance after");
+            IERC20Ext(cToken).safeTransfer(msg.sender, cTokenBalanceAfter - cTokenBalanceBefore);
         }
         if (useGasToken) {
             numberGasBurns = burnGasTokensAfterTrade(gasBefore);
