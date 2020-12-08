@@ -15,7 +15,8 @@ interface ISmartWalletLending {
         IAaveLendingPoolV2 poolV2,
         IAaveLendingPoolV1 poolV1,
         uint16 referalCode,
-        IWeth weth
+        IWeth weth,
+        IERC20Ext[] calldata tokens
     ) external;
 
     function updateCompoundData(
@@ -35,7 +36,8 @@ interface ISmartWalletLending {
         LendingPlatform platform,
         address payable onBehalfOf,
         IERC20Ext token,
-        uint256 amount
+        uint256 amount,
+        uint256 minReturn
     ) external returns (uint256 returnedAmount);
 
     function repayBorrowTo(

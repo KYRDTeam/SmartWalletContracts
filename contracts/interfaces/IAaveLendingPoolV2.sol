@@ -1,5 +1,7 @@
 pragma solidity 0.6.6;
+pragma experimental ABIEncoderV2;
 
+import "../wrappers/AAVE/DataTypes.sol";
 
 interface IAaveLendingPoolV2 {
 
@@ -79,4 +81,9 @@ interface IAaveLendingPoolV2 {
     uint256 rateMode,
     address onBehalfOf
   ) external returns (uint256);
+
+  function getReserveData(address asset)
+    external
+    view
+    returns (DataTypes.ReserveData memory);
 }

@@ -104,6 +104,7 @@ interface ISmartWalletSwapImplementation {
         ISmartWalletLending.LendingPlatform platform,
         IERC20Ext token,
         uint256 amount,
+        uint256 minReturn,
         bool useGasToken
     ) external returns (uint256 returnedAmount);
 

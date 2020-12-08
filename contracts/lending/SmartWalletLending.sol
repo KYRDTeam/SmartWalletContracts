@@ -1,4 +1,5 @@
 pragma solidity 0.6.6;
+pragma experimental ABIEncoderV2;
 
 import "../wrappers/AAVE/ILendingPoolCore.sol";
 import "./ISmartWalletLending.sol";
@@ -13,8 +14,10 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
 
     struct AaveLendingPoolData {
         IAaveLendingPoolV2 lendingPoolV2;
+        mapping (IERC20Ext => address) aTokensV2;
         IWeth weth;
         IAaveLendingPoolV1 lendingPoolV1;
+        mapping (IERC20Ext => address) aTokensV1;
         uint16 referalCode;
     }
 
@@ -27,13 +30,20 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
 
     CompoundData public compoundData;
 
-    address public immutable swapImplementation;
+    address public swapImplementation;
 
+    event UpdatedSwapImplementation(
+        address indexed _oldSwapImpl,
+        address indexed _newSwapImpl
+    );
     event UpdatedAaveLendingPool(
         IAaveLendingPoolV2 poolV2,
         IAaveLendingPoolV1 poolV1,
         uint16 referalCode,
-        IWeth weth
+        IWeth weth,
+        IERC20Ext[] tokens,
+        address[] aTokensV1,
+        address[] aTokensV2
     );
     event UpdatedCompoudData(
         address compToken,
@@ -47,28 +57,57 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         _;
     }
 
-    constructor(address _admin, address _swapImpl) public Withdrawable(_admin) {
-        swapImplementation = _swapImpl;
-    }
+    constructor(address _admin) public Withdrawable(_admin) {}
 
     receive() external payable {}
+
+    function updateSwapImplementation(address _swapImpl) external onlyAdmin {
+        require(_swapImpl != address(0), "invalid swap impl");
+        emit UpdatedSwapImplementation(swapImplementation, _swapImpl);
+        swapImplementation = _swapImpl;
+    }
 
     function updateAaveLendingPoolData(
         IAaveLendingPoolV2 poolV2,
         IAaveLendingPoolV1 poolV1,
         uint16 referalCode,
-        IWeth weth
+        IWeth weth,
+        IERC20Ext[] calldata tokens
     )
         external override onlyAdmin
     {
         require(weth != IWeth(0), "invalid weth");
-        aaveLendingPool = AaveLendingPoolData({
-            lendingPoolV2: poolV2,
-            lendingPoolV1: poolV1,
-            referalCode: referalCode,
-            weth: weth
-        });
-        emit UpdatedAaveLendingPool(poolV2, poolV1, referalCode, weth);
+        aaveLendingPool.lendingPoolV2 = poolV2;
+        aaveLendingPool.lendingPoolV1 = poolV1;
+        aaveLendingPool.referalCode = referalCode;
+        aaveLendingPool.weth = weth;
+
+        address[] memory aTokensV1 = new address[](tokens.length);
+        address[] memory aTokensV2 = new address[](tokens.length);
+
+        for(uint256 i = 0; i < tokens.length; i++) {
+            if (poolV1 != IAaveLendingPoolV1(0)) {
+                // update data for pool v1
+                try ILendingPoolCore(poolV1.core()).getReserveATokenAddress(address(tokens[i]))
+                    returns (address aToken)
+                {
+                    aTokensV1[i] = aToken;
+                } catch { }
+                aaveLendingPool.aTokensV1[tokens[i]] = aTokensV1[i];
+            }
+            if (poolV2 != IAaveLendingPoolV2(0)) {
+                address token = tokens[i] == ETH_TOKEN_ADDRESS ? address(weth) : address(tokens[i]);
+                // update data for pool v2
+                try poolV2.getReserveData(token)
+                    returns (DataTypes.ReserveData memory data)
+                {
+                    aTokensV2[i] = data.aTokenAddress;
+                } catch { }
+                aaveLendingPool.aTokensV2[tokens[i]] = aTokensV2[i];
+            }
+        }
+
+        emit UpdatedAaveLendingPool(poolV2, poolV1, referalCode, weth, tokens, aTokensV1, aTokensV2);
     }
 
     function updateCompoundData(
@@ -148,7 +187,8 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         LendingPlatform platform,
         address payable onBehalfOf,
         IERC20Ext token,
-        uint256 amount
+        uint256 amount,
+        uint256 minReturn
     )
         external override onlySwapImpl returns (uint256 returnedAmount)
     {
@@ -163,46 +203,41 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
             IAToken(lendingToken).redeem(amount);
             tokenBalanceAfter = getBalance(token, address(this));
             returnedAmount = tokenBalanceAfter.sub(tokenBalanceBefore);
+            require(returnedAmount >= minReturn, "low returned amount");
             // transfer token to user
             transferToken(onBehalfOf, token, returnedAmount);
         } else if (platform == LendingPlatform.AAVE_V2) {
-            // TODO: Find a way to get correct aToken address
-            // IAaveLendingPoolV2 poolV2 = aaveLendingPool.lendingPoolV2;
-            // if (token == ETH_TOKEN_ADDRESS) {
-            //     // withdraw weth, then convert to eth for user
-            //     address weth = address(aaveLendingPool.weth);
-            //     // collect aToken to burn
-            //     address aToken = poolV2.getReserveData(weth).aTokenAddress;
-            //     IERC20Ext(aToken).safeTransferFrom(msg.sender, address(this), amount);
-
-            //     // withdraw underlying token from pool
-            //     tokenBalanceBefore = IERC20Ext(weth).balanceOf(address(this));
-            //     returnedAmount = aaveLendingPool.lendingPoolV2.withdraw(weth, amount, address(this));
-            //     tokenBalanceAfter = IERC20Ext(weth).balanceOf(address(this));
-            //     require(tokenBalanceAfter.sub(tokenBalanceBefore) >= returnedAmount, "invalid return");
-
-            //     // convert weth to eth and transfer to sender
-            //     IWeth(weth).withdraw(returnedAmount);
-            //     (bool success, ) = msg.sender.call { value: returnedAmount }("");
-            //     require(success, "transfer eth to sender failed");
-            // } else {
-            //     // collect aToken
-            //     address aToken = poolV2.getReserveData(address(token)).aTokenAddress;
-            //     IERC20Ext(aToken).safeTransferFrom(msg.sender, address(this), amount);
-            //     // withdraw token directly to user's wallet
-            //     tokenBalanceBefore = getBalance(token, msg.sender);
-            //     returnedAmount = aaveLendingPool.lendingPoolV2.withdraw(address(token), amount, msg.sender);
-            //     tokenBalanceAfter = getBalance(token, msg.sender);
-            //     // valid received amount in msg.sender
-            //     require(tokenBalanceAfter.sub(tokenBalanceBefore) >= returnedAmount, "invalid return");
-            // }
+            if (token == ETH_TOKEN_ADDRESS) {
+                // withdraw weth, then convert to eth for user
+                address weth = address(aaveLendingPool.weth);
+                // withdraw underlying token from pool
+                tokenBalanceBefore = IERC20Ext(weth).balanceOf(address(this));
+                returnedAmount = aaveLendingPool.lendingPoolV2.withdraw(weth, amount, address(this));
+                tokenBalanceAfter = IERC20Ext(weth).balanceOf(address(this));
+                require(tokenBalanceAfter.sub(tokenBalanceBefore) >= returnedAmount, "invalid return");
+                require(returnedAmount >= minReturn, "low returned amount");
+                // convert weth to eth and transfer to sender
+                IWeth(weth).withdraw(returnedAmount);
+                (bool success, ) = onBehalfOf.call { value: returnedAmount }("");
+                require(success, "transfer eth to sender failed");
+            } else {
+                // withdraw token directly to user's wallet
+                tokenBalanceBefore = getBalance(token, msg.sender);
+                returnedAmount = aaveLendingPool.lendingPoolV2.withdraw(address(token), amount, msg.sender);
+                tokenBalanceAfter = getBalance(token, msg.sender);
+                // valid received amount in msg.sender
+                require(tokenBalanceAfter.sub(tokenBalanceBefore) >= returnedAmount, "invalid return");
+                require(returnedAmount >= minReturn, "low returned amount");
+                token.safeTransfer(onBehalfOf, returnedAmount);
+            }
         } else {
             // COMPOUND
             // burn cToken to withdraw underlying token
             tokenBalanceBefore = getBalance(token, address(this));
-            returnedAmount = ICompErc20(lendingToken).redeem(amount);
+            require(ICompErc20(lendingToken).redeem(amount) == 0, "unable to redeem");
             tokenBalanceAfter = getBalance(token, address(this));
-            require(tokenBalanceAfter.sub(tokenBalanceBefore) >= returnedAmount, "invalid return");
+            returnedAmount = tokenBalanceAfter.sub(tokenBalanceBefore);
+            require(returnedAmount >= minReturn, "low returned amount");
             // transfer underlying token to user
             transferToken(onBehalfOf, token, returnedAmount);
         }
@@ -259,11 +294,11 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         public override view returns(address)
     {
         if (platform == LendingPlatform.AAVE_V1) {
-            IAaveLendingPoolV1 poolV1 = aaveLendingPool.lendingPoolV1;
-            return ILendingPoolCore(poolV1.core()).getReserveATokenAddress(address(token));
+            // IAaveLendingPoolV1 poolV1 = aaveLendingPool.lendingPoolV1;
+            // return ILendingPoolCore(poolV1.core()).getReserveATokenAddress(address(token));
+            return aaveLendingPool.aTokensV1[token];
         } else if (platform == LendingPlatform.AAVE_V2) {
-            // TODO
-            return address(token);
+            return aaveLendingPool.aTokensV2[token];
         }
         return compoundData.cTokens[token];
     }

@@ -244,7 +244,6 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             numberGasBurns = burnGasTokensAfterTrade(gasBefore);
         }
 
-        // depositAndBurnGas(platform, dest, destAmount, useGasToken, gasBefore);
         // TODO: Emit event
     }
 
@@ -300,7 +299,6 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         if (useGasToken) {
             numberGasBurns = burnGasTokensAfterTrade(gasBefore);
         }
-        // depositAndBurnGas(platform, dest, destAmount, useGasToken, gasBefore);
         // TODO: Emit event
     }
 
@@ -313,6 +311,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         ISmartWalletLending.LendingPlatform platform,
         IERC20Ext token,
         uint256 amount,
+        uint256 minReturn,
         bool useGasToken
     )
         external override nonReentrant returns (uint256 returnedAmount)
@@ -323,7 +322,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         require(lendingToken != address(0), "token not supported");
         IERC20Ext(lendingToken).safeTransferFrom(msg.sender, address(lendingImpl), amount);
 
-        returnedAmount = lendingImpl.withdrawFrom(platform, msg.sender, token, amount);
+        returnedAmount = lendingImpl.withdrawFrom(platform, msg.sender, token, amount, minReturn);
 
         uint256 numGasBurns;
         if (useGasToken) {
@@ -416,6 +415,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         if (useGasToken) {
             numGasBurns = burnGasTokensAfterTrade(gasBefore);
         }
+        // TODO: Emit event
     }
 
     /// @dev get expected return and conversion rate if using Kyber
