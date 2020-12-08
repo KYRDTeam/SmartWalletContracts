@@ -2,7 +2,6 @@ pragma solidity 0.6.6;
 
 import "./ISmartWalletSwapImplementation.sol";
 import "./SmartWalletSwapStorage.sol";
-import "../wrappers/AAVE/ILendingPoolCore.sol";
 import "@kyber.network/utils-sc/contracts/IERC20Ext.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
@@ -22,18 +21,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         bool isAdded
     );
     event UpdatedBurnGasHelper(IBurnGasHelper indexed gasHelper);
-    event UpdatedAaveLendingPool(
-        IAaveLendingPoolV2 poolV2,
-        IAaveLendingPoolV1 poolV1,
-        uint16 referalCode,
-        IWeth weth
-    );
-    event UpdatedCompoudData(
-        address compToken,
-        address cEth,
-        address[] cTokens,
-        IERC20Ext[] underlyingTokens
-    );
+    event UpdatedLendingImplementation(ISmartWalletLending indexed impl);
     event ApproveAllowances(
         IERC20Ext[] indexed tokens,
         address[] indexed spenders,
@@ -59,37 +47,12 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         }
     }
 
-    function updateAaveLendingPoolData(
-        IAaveLendingPoolV2 poolV2,
-        IAaveLendingPoolV1 poolV1,
-        uint16 referalCode,
-        IWeth weth
+    function updateLendingImplementation(
+        ISmartWalletLending newImpl
     ) external onlyAdmin {
-        require(weth != IWeth(0), "invalid weth");
-        aaveLendingPool = AaveLendingPoolData({
-            lendingPoolV2: poolV2,
-            lendingPoolV1: poolV1,
-            referalCode: referalCode,
-            weth: weth
-        });
-        emit UpdatedAaveLendingPool(poolV2, poolV1, referalCode, weth);
-    }
-
-    function updateCompoundData(address _comToken, address _cEth, address[] calldata _cTokens)
-        external onlyAdmin
-    {
-        require(_comToken != address(0), "invalid comp token");
-        require(_cEth != address(0), "invalid cEth");
-        compoundData.compToken = _comToken;
-        compoundData.cTokens[ETH_TOKEN_ADDRESS] = _cEth;
-        IERC20Ext[] memory tokens = new IERC20Ext[](_cTokens.length);
-        for(uint256 i = 0; i < _cTokens.length; i++) {
-            require(_cTokens[i] != address(0), "invalid cToken");
-            tokens[i] = IERC20Ext(ICompErc20(_cTokens[i]).underlying());
-            require(tokens[i] != IERC20Ext(0), "invalid underlying token");
-            compoundData.cTokens[tokens[i]] = _cTokens[i];
-        }
-        emit UpdatedCompoudData(_comToken, _cEth, _cTokens, tokens);
+        require(newImpl != ISmartWalletLending(0), "invalid lending impl");
+        lendingImpl = newImpl;
+        emit UpdatedLendingImplementation(newImpl);
     }
 
     /// @dev can support to trade with Uniswap or its clone, for example: Sushiswap, SashimiSwap
@@ -141,6 +104,8 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         emit ApproveAllowances(tokens, spenders, isReset);
     }
 
+    /// ========== SWAP ========== ///
+
     /// @dev swap token via Kyber
     /// @notice for some tokens that are paying fee, for example: DGX
     /// contract will trade with received src token amount (after minus fee)
@@ -190,8 +155,53 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         );
     }
 
+    /// @dev swap token via a supported Uniswap router
+    /// @notice for some tokens that are paying fee, for example: DGX
+    /// contract will trade with received src token amount (after minus fee)
+    /// for Uniswap, fee will be taken in src token
+    function swapUniswap(
+        IUniswapV2Router02 router,
+        uint256 srcAmount,
+        uint256 minDestAmount,
+        address[] calldata tradePath,
+        address payable recipient,
+        uint256 platformFeeBps,
+        address payable platformWallet,
+        bool useGasToken
+    ) external override nonReentrant payable returns (uint256 destAmount) {
+        uint256 gasBefore = useGasToken ? gasleft() : 0;
+        destAmount = swapUniswapInternal(
+            router,
+            srcAmount,
+            minDestAmount,
+            tradePath,
+            recipient,
+            platformFeeBps,
+            platformWallet
+        );
+        uint256 numberGasBurns = 0;
+        if (useGasToken) {
+            numberGasBurns = burnGasTokensAfterTrade(gasBefore);
+        }
+
+        emit UniswapTrade(
+            msg.sender,
+            address(router),
+            tradePath,
+            srcAmount,
+            destAmount,
+            recipient,
+            platformFeeBps,
+            platformWallet,
+            useGasToken,
+            numberGasBurns
+        );
+    }
+
+    /// ========== SWAP & DEPOSIT ========== ///
+
     function swapKyberAndDeposit(
-        LendingPlatform platform,
+        ISmartWalletLending.LendingPlatform platform,
         IERC20Ext src,
         IERC20Ext dest,
         uint256 srcAmount,
@@ -203,14 +213,15 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     )
         external override nonReentrant payable returns (uint256 destAmount)
     {
+        require(lendingImpl != ISmartWalletLending(0));
         uint256 gasBefore = useGasToken ? gasleft() : 0;
         if (src == dest) {
             // just collect src token, no need to swap
-            destAmount = validateAndPrepareSourceAmount(
-                address(kyberProxy),
+            destAmount = safeForwardToken(
                 src,
-                srcAmount,
-                platformWallet
+                msg.sender,
+                payable(address(lendingImpl)),
+                srcAmount
             );
         } else {
             destAmount = doKyberTrade(
@@ -218,14 +229,22 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                 dest,
                 srcAmount,
                 minConversionRate,
-                payable(address(this)),
+                payable(address(lendingImpl)),
                 platformFeeBps,
                 platformWallet,
                 hint
             );
         }
 
-        depositAndBurnGas(platform, dest, destAmount, useGasToken, gasBefore);
+        // eth or token alr transferred to the address
+        lendingImpl.depositTo(platform, msg.sender, dest, destAmount);
+
+        uint256 numberGasBurns = 0;
+        if (useGasToken) {
+            numberGasBurns = burnGasTokensAfterTrade(gasBefore);
+        }
+
+        // depositAndBurnGas(platform, dest, destAmount, useGasToken, gasBefore);
         // TODO: Emit event
     }
 
@@ -240,7 +259,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     /// @param platformWallet wallet to receive fee
     /// @param useGasToken whether to use gas token or not
     function swapUniswapAndDeposit(
-        LendingPlatform platform,
+        ISmartWalletLending.LendingPlatform platform,
         IUniswapV2Router02 router,
         uint256 srcAmount,
         uint256 minDestAmount,
@@ -249,25 +268,39 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         address payable platformWallet,
         bool useGasToken
     )
-        external override payable returns (uint256 destAmount)
+        external override nonReentrant payable returns (uint256 destAmount)
     {
+        require(lendingImpl != ISmartWalletLending(0));
         uint256 gasBefore = useGasToken ? gasleft() : 0;
         IERC20Ext dest = IERC20Ext(tradePath[tradePath.length - 1]);
         if (tradePath.length == 1) {
             // just collect src token, no need to swap
-            destAmount = validateAndPrepareSourceAmount(
-                address(router),
+            destAmount = safeForwardToken(
                 dest,
-                srcAmount,
-                platformWallet
+                msg.sender,
+                payable(address(lendingImpl)),
+                srcAmount
             );
         } else {
-            destAmount = swapUniswap(
-                router, srcAmount, minDestAmount, tradePath, payable(address(this)), platformFeeBps, platformWallet, false
+            destAmount = swapUniswapInternal(
+                router,
+                srcAmount,
+                minDestAmount,
+                tradePath,
+                payable(address(lendingImpl)),
+                platformFeeBps,
+                platformWallet
             );
         }
 
-        depositAndBurnGas(platform, dest, destAmount, useGasToken, gasBefore);
+        // eth or token alr transferred to the address
+        lendingImpl.depositTo(platform, msg.sender, dest, destAmount);
+
+        uint256 numberGasBurns = 0;
+        if (useGasToken) {
+            numberGasBurns = burnGasTokensAfterTrade(gasBefore);
+        }
+        // depositAndBurnGas(platform, dest, destAmount, useGasToken, gasBefore);
         // TODO: Emit event
     }
 
@@ -277,77 +310,112 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     /// @param amount amount of cToken (COMPOUND) or aToken (AAVE) to withdraw
     /// @param useGasToken whether to use gas token or not
     function withdrawFromLendingPlatform(
-        LendingPlatform platform,
+        ISmartWalletLending.LendingPlatform platform,
         IERC20Ext token,
         uint256 amount,
         bool useGasToken
     )
         external override nonReentrant returns (uint256 returnedAmount)
     {
+        require(lendingImpl != ISmartWalletLending(0));
         uint256 gasBefore = useGasToken ? gasleft() : 0;
-        uint256 tokenBalanceBefore;
-        uint256 tokenBalanceAfter;
-        if (platform == LendingPlatform.AAVE_V1) {
-            IAaveLendingPoolV1 poolV1 = aaveLendingPool.lendingPoolV1;
-            address aToken = ILendingPoolCore(poolV1.core()).getReserveATokenAddress(address(token));
-            // collect aToken
-            IERC20Ext(aToken).safeTransferFrom(msg.sender, address(this), amount);
-            // burn aToken to withdraw underlying token
-            tokenBalanceBefore = getBalance(token, address(this));
-            IAToken(aToken).redeem(amount);
-            tokenBalanceAfter = getBalance(token, address(this));
-            returnedAmount = tokenBalanceAfter.sub(tokenBalanceBefore);
-            // transfer token to user
-            transferToken(msg.sender, token, returnedAmount);
-        } else if (platform == LendingPlatform.AAVE_V2) {
-            // TODO: Find a way to get correct aToken address
-            // IAaveLendingPoolV2 poolV2 = aaveLendingPool.lendingPoolV2;
-            // if (token == ETH_TOKEN_ADDRESS) {
-            //     // withdraw weth, then convert to eth for user
-            //     address weth = address(aaveLendingPool.weth);
-            //     // collect aToken to burn
-            //     address aToken = poolV2.getReserveData(weth).aTokenAddress;
-            //     IERC20Ext(aToken).safeTransferFrom(msg.sender, address(this), amount);
+        address lendingToken = lendingImpl.getLendingToken(platform, token);
+        require(lendingToken != address(0), "token not supported");
+        IERC20Ext(lendingToken).safeTransferFrom(msg.sender, address(lendingImpl), amount);
 
-            //     // withdraw underlying token from pool
-            //     tokenBalanceBefore = IERC20Ext(weth).balanceOf(address(this));
-            //     returnedAmount = aaveLendingPool.lendingPoolV2.withdraw(weth, amount, address(this));
-            //     tokenBalanceAfter = IERC20Ext(weth).balanceOf(address(this));
-            //     require(tokenBalanceAfter.sub(tokenBalanceBefore) >= returnedAmount, "invalid return");
+        returnedAmount = lendingImpl.withdrawFrom(platform, msg.sender, token, amount);
 
-            //     // convert weth to eth and transfer to sender
-            //     IWeth(weth).withdraw(returnedAmount);
-            //     (bool success, ) = msg.sender.call { value: returnedAmount }("");
-            //     require(success, "transfer eth to sender failed");
-            // } else {
-            //     // collect aToken
-            //     address aToken = poolV2.getReserveData(address(token)).aTokenAddress;
-            //     IERC20Ext(aToken).safeTransferFrom(msg.sender, address(this), amount);
-            //     // withdraw token directly to user's wallet
-            //     tokenBalanceBefore = getBalance(token, msg.sender);
-            //     returnedAmount = aaveLendingPool.lendingPoolV2.withdraw(address(token), amount, msg.sender);
-            //     tokenBalanceAfter = getBalance(token, msg.sender);
-            //     // valid received amount in msg.sender
-            //     require(tokenBalanceAfter.sub(tokenBalanceBefore) >= returnedAmount, "invalid return");
-            // }
-        } else {
-            // COMPOUND
-            // collect cToken
-            address cToken = compoundData.cTokens[token];
-            IERC20Ext(cToken).safeTransferFrom(msg.sender, address(this), amount);
-            // burn cToken to withdraw underlying token
-            tokenBalanceBefore = getBalance(token, address(this));
-            returnedAmount = ICompErc20(cToken).redeem(amount);
-            tokenBalanceAfter = getBalance(token, address(this));
-            require(tokenBalanceAfter.sub(tokenBalanceBefore) >= returnedAmount, "invalid return");
-            // transfer underlying token to user
-            transferToken(msg.sender, token, returnedAmount);
-        }
         uint256 numGasBurns;
         if (useGasToken) {
             numGasBurns = burnGasTokensAfterTrade(gasBefore);
         }
         // TODO: Emit event
+    }
+
+    function swapKyberAndRepay(
+        ISmartWalletLending.LendingPlatform platform,
+        IERC20Ext src,
+        IERC20Ext dest,
+        uint256 srcAmount,
+        uint256 payAmount,
+        uint256 platformFeeBps,
+        address payable platformWallet,
+        bytes calldata hint,
+        bool useGasToken
+    )
+        external override nonReentrant payable returns (uint256 destAmount)
+    {
+        require(lendingImpl != ISmartWalletLending(0));
+        uint256 gasBefore = useGasToken ? gasleft() : 0;
+        if (src == dest) {
+            // just collect src token, no need to swap
+            destAmount = safeForwardToken(
+                src,
+                msg.sender,
+                payable(address(lendingImpl)),
+                srcAmount
+            );
+        } else {
+            destAmount = doKyberTrade(
+                src,
+                dest,
+                srcAmount,
+                0,
+                payable(address(lendingImpl)),
+                platformFeeBps,
+                platformWallet,
+                hint
+            );
+        }
+        lendingImpl.repayBorrowTo(platform, msg.sender, dest, destAmount, payAmount, 0);
+
+        uint256 numGasBurns;
+        if (useGasToken) {
+            numGasBurns = burnGasTokensAfterTrade(gasBefore);
+        }
+        // TODO: Emit event
+    }
+
+    function swapUniswapAndRepay(
+        ISmartWalletLending.LendingPlatform platform,
+        IUniswapV2Router02 router,
+        uint256 srcAmount,
+        uint256 payAmount,
+        address[] calldata tradePath,
+        uint256 platformFeeBps,
+        address payable platformWallet,
+        bool useGasToken
+    )
+        external override nonReentrant payable returns (uint256 destAmount)
+    {
+        require(lendingImpl != ISmartWalletLending(0));
+        uint256 gasBefore = useGasToken ? gasleft() : 0;
+        IERC20Ext dest = IERC20Ext(tradePath[tradePath.length - 1]);
+        if (tradePath.length == 1) {
+            // just collect src token, no need to swap
+            destAmount = safeForwardToken(
+                dest,
+                msg.sender,
+                payable(address(lendingImpl)),
+                srcAmount
+            );
+        } else {
+            destAmount = swapUniswapInternal(
+                router,
+                srcAmount,
+                payAmount,
+                tradePath,
+                payable(address(lendingImpl)),
+                platformFeeBps,
+                platformWallet
+            );
+        }
+        lendingImpl.repayBorrowTo(platform, msg.sender, dest, destAmount, payAmount, 0);
+
+        uint256 numGasBurns;
+        if (useGasToken) {
+            numGasBurns = burnGasTokensAfterTrade(gasBefore);
+        }
     }
 
     /// @dev get expected return and conversion rate if using Kyber
@@ -406,21 +474,45 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         );
     }
 
-    /// @dev swap token via a supported Uniswap router
-    /// @notice for some tokens that are paying fee, for example: DGX
-    /// contract will trade with received src token amount (after minus fee)
-    /// for Uniswap, fee will be taken in src token
-    function swapUniswap(
+    function doKyberTrade(
+        IERC20Ext src,
+        IERC20Ext dest,
+        uint256 srcAmount,
+        uint256 minConversionRate,
+        address payable recipient,
+        uint256 platformFeeBps,
+        address payable platformWallet,
+        bytes memory hint
+    ) internal virtual returns (uint256 destAmount) {
+        uint256 actualSrcAmount = validateAndPrepareSourceAmount(
+            address(kyberProxy),
+            src,
+            srcAmount,
+            platformWallet
+        );
+        uint256 callValue = src == ETH_TOKEN_ADDRESS ? actualSrcAmount : 0;
+        destAmount = kyberProxy.tradeWithHintAndFee{ value: callValue }(
+            src,
+            actualSrcAmount,
+            dest,
+            recipient,
+            MAX_AMOUNT,
+            minConversionRate,
+            platformWallet,
+            platformFeeBps,
+            hint
+        );
+    }
+
+    function swapUniswapInternal(
         IUniswapV2Router02 router,
         uint256 srcAmount,
         uint256 minDestAmount,
         address[] memory tradePath,
         address payable recipient,
         uint256 platformFeeBps,
-        address payable platformWallet,
-        bool useGasToken
-    ) public override nonReentrant payable returns (uint256 destAmount) {
-        uint256 gasBefore = useGasToken ? gasleft() : 0;
+        address payable platformWallet
+    ) internal returns (uint256 destAmount) {
         TradeInput memory input = TradeInput({
             srcAmount: srcAmount,
             srcAmountFee: 0,
@@ -450,53 +542,6 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             src,
             tradePath,
             input
-        );
-        uint256 numberGasBurns = 0;
-        if (useGasToken) {
-            numberGasBurns = burnGasTokensAfterTrade(gasBefore);
-        }
-
-        emit UniswapTrade(
-            msg.sender,
-            address(router),
-            tradePath,
-            input.srcAmount,
-            destAmount,
-            input.recipient,
-            input.platformFeeBps,
-            input.platformWallet,
-            useGasToken,
-            numberGasBurns
-        );
-    }
-
-    function doKyberTrade(
-        IERC20Ext src,
-        IERC20Ext dest,
-        uint256 srcAmount,
-        uint256 minConversionRate,
-        address payable recipient,
-        uint256 platformFeeBps,
-        address payable platformWallet,
-        bytes memory hint
-    ) internal virtual returns (uint256 destAmount) {
-        uint256 actualSrcAmount = validateAndPrepareSourceAmount(
-            address(kyberProxy),
-            src,
-            srcAmount,
-            platformWallet
-        );
-        uint256 callValue = src == ETH_TOKEN_ADDRESS ? actualSrcAmount : 0;
-        destAmount = kyberProxy.tradeWithHintAndFee{ value: callValue }(
-            src,
-            actualSrcAmount,
-            dest,
-            recipient,
-            MAX_AMOUNT,
-            minConversionRate,
-            platformWallet,
-            platformFeeBps,
-            hint
         );
     }
 
@@ -578,63 +623,6 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         }
     }
 
-    function depositAndBurnGas(
-        LendingPlatform platform,
-        IERC20Ext token,
-        uint256 amount,
-        bool useGasToken,
-        uint256 gasBefore
-    )
-        internal returns (uint256 numberGasBurns)
-    {
-        if (platform == LendingPlatform.AAVE_V1) {
-            IAaveLendingPoolV1 poolV1 = aaveLendingPool.lendingPoolV1;
-            IERC20Ext aToken = IERC20Ext(ILendingPoolCore(poolV1.core()).getReserveATokenAddress(address(token)));
-            require(aToken != IERC20Ext(0), "aToken not found");
-            // approve allowance if needed
-            if (token != ETH_TOKEN_ADDRESS) {
-                safeApproveAllowance(address(poolV1), token);
-            }
-            // deposit and compute received aToken amount
-            uint256 aTokenBalanceBefore = aToken.balanceOf(address(this));
-            poolV1.deposit{ value: token == ETH_TOKEN_ADDRESS ? amount : 0 }(
-                address(token), amount, aaveLendingPool.referalCode
-            );
-            uint256 aTokenBalanceAfter = aToken.balanceOf(address(this));
-            // transfer all received aToken back to the sender
-            aToken.safeTransfer(msg.sender, aTokenBalanceAfter.sub(aTokenBalanceBefore));
-        } else if (platform == LendingPlatform.AAVE_V2) {
-            if (token == ETH_TOKEN_ADDRESS) {
-                // wrap eth -> weth, then deposit
-                IWeth weth = aaveLendingPool.weth;
-                IAaveLendingPoolV2 pool = aaveLendingPool.lendingPoolV2;
-                weth.deposit{ value: amount }();
-                safeApproveAllowance(address(pool), weth);
-                pool.deposit(address(weth), amount, msg.sender, aaveLendingPool.referalCode);
-            } else {
-                IAaveLendingPoolV2 pool = aaveLendingPool.lendingPoolV2;
-                safeApproveAllowance(address(pool), token);
-                pool.deposit(address(token), amount, msg.sender, aaveLendingPool.referalCode);
-            }
-        } else {
-            // COMPOUND
-            address cToken = compoundData.cTokens[token];
-            require(cToken != address(0), "token is not supported by Compound");
-            uint256 cTokenBalanceBefore = IERC20Ext(cToken).balanceOf(address(this));
-            if (token == ETH_TOKEN_ADDRESS) {
-                ICompEth(cToken).mint { value: amount }();
-            } else {
-                safeApproveAllowance(cToken, token);
-                require(ICompErc20(cToken).mint(amount) == 0, "can not mint cToken");
-            }
-            uint256 cTokenBalanceAfter = IERC20Ext(cToken).balanceOf(address(this));
-            IERC20Ext(cToken).safeTransfer(msg.sender, cTokenBalanceAfter.sub(cTokenBalanceBefore));
-        }
-        if (useGasToken) {
-            numberGasBurns = burnGasTokensAfterTrade(gasBefore);
-        }
-    }
-
     function burnGasTokensAfterTrade(uint256 gasBefore)
         internal virtual
         returns(uint256 numBurnTokens)
@@ -655,6 +643,22 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
 
         if (numBurnTokens > 0 && gasToken != IGasToken(0)) {
             numBurnTokens = gasToken.freeFromUpTo(msg.sender, numBurnTokens);
+        }
+    }
+
+    function safeForwardToken(IERC20Ext token, address from, address payable to, uint256 amount)
+        internal returns (uint destAmount)
+    {
+        if (token == ETH_TOKEN_ADDRESS) {
+            require(msg.value >= amount);
+            (bool success, ) = to.call { value: amount }("");
+            require(success, "transfer eth failed");
+            destAmount = amount;
+        } else {
+            uint256 balanceBefore = token.balanceOf(to);
+            token.safeTransferFrom(from, to, amount);
+            uint256 balanceAfter = token.balanceOf(to);
+            destAmount = balanceAfter.sub(balanceBefore);
         }
     }
 

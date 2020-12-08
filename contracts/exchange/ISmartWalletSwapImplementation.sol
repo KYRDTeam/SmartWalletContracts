@@ -1,5 +1,6 @@
 pragma solidity 0.6.6;
 
+import "../lending/ISmartWalletLending.sol";
 import "@kyber.network/utils-sc/contracts/IERC20Ext.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 
@@ -43,8 +44,6 @@ interface ISmartWalletSwapImplementation {
         uint256 expectedRate
     );
 
-    enum LendingPlatform { AAVE_V1, AAVE_V2, COMPOUND }
-
     function getExpectedReturnUniswap(
         IUniswapV2Router02 router,
         uint256 srcAmount,
@@ -79,7 +78,7 @@ interface ISmartWalletSwapImplementation {
     ) external payable returns (uint256 destAmount);
 
     function swapKyberAndDeposit(
-        LendingPlatform depositType,
+        ISmartWalletLending.LendingPlatform platform,
         IERC20Ext src,
         IERC20Ext dest,
         uint256 srcAmount,
@@ -91,7 +90,7 @@ interface ISmartWalletSwapImplementation {
     ) external payable returns (uint256 destAmount);
 
     function swapUniswapAndDeposit(
-        LendingPlatform platform,
+        ISmartWalletLending.LendingPlatform platform,
         IUniswapV2Router02 router,
         uint256 srcAmount,
         uint256 minDestAmount,
@@ -102,9 +101,32 @@ interface ISmartWalletSwapImplementation {
     ) external payable returns (uint256 destAmount);
 
     function withdrawFromLendingPlatform(
-        LendingPlatform platform,
+        ISmartWalletLending.LendingPlatform platform,
         IERC20Ext token,
         uint256 amount,
         bool useGasToken
     ) external returns (uint256 returnedAmount);
+
+    function swapKyberAndRepay(
+        ISmartWalletLending.LendingPlatform platform,
+        IERC20Ext src,
+        IERC20Ext dest,
+        uint256 srcAmount,
+        uint256 payAmount,
+        uint256 platformFeeBps,
+        address payable platformWallet,
+        bytes calldata hint,
+        bool useGasToken
+    ) external payable returns (uint256 destAmount);
+
+    function swapUniswapAndRepay(
+        ISmartWalletLending.LendingPlatform platform,
+        IUniswapV2Router02 router,
+        uint256 srcAmount,
+        uint256 payAmount,
+        address[] calldata tradePath,
+        uint256 platformFeeBps,
+        address payable platformWallet,
+        bool useGasToken
+    ) external payable returns (uint256 destAmount);
 }

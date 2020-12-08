@@ -26,4 +26,6 @@ interface ICompErc20 {
 
 interface ICompEth {
     function mint() external payable;
+    function repayBorrowBehalf(address borrower) external payable;
+    function repayBorrow() external payable;
 }
