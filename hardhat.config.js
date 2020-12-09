@@ -1,8 +1,9 @@
 require("@nomiclabs/hardhat-truffle5");
 require("@nomiclabs/hardhat-web3");
 require("@nomiclabs/hardhat-ganache");
+require("@nomiclabs/hardhat-etherscan");
 require("hardhat-gas-reporter");
-require('solidity-coverage')
+require('solidity-coverage');
 
 require('dotenv').config();
 
@@ -178,6 +179,12 @@ module.exports = {
 
   mocha: {
     timeout: 0
+  },
+
+  etherscan: {
+    // Your API key for Etherscan
+    // Obtain one at https://etherscan.io/
+    apiKey: process.env.ETHERSCAN_KEY
   }
 };
 
