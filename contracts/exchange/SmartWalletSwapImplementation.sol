@@ -135,10 +135,10 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             platformWallet,
             hint
         );
-        uint256 numberGasBurns = 0;
+        uint256 numGasBurns = 0;
         // burn gas token if needed
         if (useGasToken) {
-            numberGasBurns = burnGasTokensAfterTrade(gasBefore);
+            numGasBurns = burnGasTokensAfterTrade(gasBefore);
         }
         emit KyberTrade(
             msg.sender,
@@ -151,7 +151,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             platformWallet,
             hint,
             useGasToken,
-            numberGasBurns
+            numGasBurns
         );
     }
 
@@ -179,9 +179,9 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             platformFeeBps,
             platformWallet
         );
-        uint256 numberGasBurns = 0;
+        uint256 numGasBurns = 0;
         if (useGasToken) {
-            numberGasBurns = burnGasTokensAfterTrade(gasBefore);
+            numGasBurns = burnGasTokensAfterTrade(gasBefore);
         }
 
         emit UniswapTrade(
@@ -194,7 +194,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             platformFeeBps,
             platformWallet,
             useGasToken,
-            numberGasBurns
+            numGasBurns
         );
     }
 
@@ -239,12 +239,24 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         // eth or token alr transferred to the address
         lendingImpl.depositTo(platform, msg.sender, dest, destAmount);
 
-        uint256 numberGasBurns = 0;
+        uint256 numGasBurns = 0;
         if (useGasToken) {
-            numberGasBurns = burnGasTokensAfterTrade(gasBefore);
+            numGasBurns = burnGasTokensAfterTrade(gasBefore);
         }
 
-        // TODO: Emit event
+        emit KyberTradeAndDeposit(
+            msg.sender,
+            platform,
+            src,
+            dest,
+            srcAmount,
+            destAmount,
+            platformFeeBps,
+            platformWallet,
+            hint,
+            useGasToken,
+            numGasBurns
+        );
     }
 
     /// @dev swap Uniswap then deposit to platform
@@ -271,35 +283,49 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     {
         require(lendingImpl != ISmartWalletLending(0));
         uint256 gasBefore = useGasToken ? gasleft() : 0;
-        IERC20Ext dest = IERC20Ext(tradePath[tradePath.length - 1]);
-        if (tradePath.length == 1) {
-            // just collect src token, no need to swap
-            destAmount = safeForwardToken(
-                dest,
-                msg.sender,
-                payable(address(lendingImpl)),
-                srcAmount
-            );
-        } else {
-            destAmount = swapUniswapInternal(
-                router,
-                srcAmount,
-                minDestAmount,
-                tradePath,
-                payable(address(lendingImpl)),
-                platformFeeBps,
-                platformWallet
-            );
+        {
+            IERC20Ext dest = IERC20Ext(tradePath[tradePath.length - 1]);
+            if (tradePath.length == 1) {
+                // just collect src token, no need to swap
+                destAmount = safeForwardToken(
+                    dest,
+                    msg.sender,
+                    payable(address(lendingImpl)),
+                    srcAmount
+                );
+            } else {
+                destAmount = swapUniswapInternal(
+                    router,
+                    srcAmount,
+                    minDestAmount,
+                    tradePath,
+                    payable(address(lendingImpl)),
+                    platformFeeBps,
+                    platformWallet
+                );
+            }
+
+            // eth or token alr transferred to the address
+            lendingImpl.depositTo(platform, msg.sender, dest, destAmount);
         }
 
-        // eth or token alr transferred to the address
-        lendingImpl.depositTo(platform, msg.sender, dest, destAmount);
-
-        uint256 numberGasBurns = 0;
+        uint256 numGasBurns = 0;
         if (useGasToken) {
-            numberGasBurns = burnGasTokensAfterTrade(gasBefore);
+            numGasBurns = burnGasTokensAfterTrade(gasBefore);
         }
-        // TODO: Emit event
+
+        emit UniswapTradeAndDeposit(
+            msg.sender,
+            platform,
+            router,
+            tradePath,
+            srcAmount,
+            destAmount,
+            platformFeeBps,
+            platformWallet,
+            useGasToken,
+            numGasBurns
+        );
     }
 
     /// @dev withdraw token from Lending platforms (AAVE, COMPOUND)
@@ -328,16 +354,32 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         if (useGasToken) {
             numGasBurns = burnGasTokensAfterTrade(gasBefore);
         }
-        // TODO: Emit event
+        emit WithdrawFromLending(
+            platform,
+            token,
+            amount,
+            minReturn,
+            returnedAmount,
+            useGasToken,
+            numGasBurns
+        );
     }
 
+    /// @dev swap on Kyber and repay borrow for sender
+    /// if src == dest, no need to swap, use src token to repay directly
+    /// @param payAmount: amount that user wants to pay, if the dest amount (after swap) is higher,
+    ///     the remain amount will be sent back to user's wallet
+    /// @param feeAndRateMode: in case of aave v2, user needs to specify the rateMode to repay
+    ///     to prevent stack too deep, combine fee and rateMode into a single value
+    ///     platformFee: feeAndRateMode % BPS, rateMode: feeAndRateMode / BPS
+    /// Other params are params for trade on Kyber
     function swapKyberAndRepay(
         ISmartWalletLending.LendingPlatform platform,
         IERC20Ext src,
         IERC20Ext dest,
         uint256 srcAmount,
         uint256 payAmount,
-        uint256 platformFeeBps,
+        uint256 feeAndRateMode,
         address payable platformWallet,
         bytes calldata hint,
         bool useGasToken
@@ -355,67 +397,118 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                 srcAmount
             );
         } else {
+            // use min rate so it can return earlier if failed to swap
+            uint256 minRate = calcRateFromQty(
+                srcAmount,
+                payAmount,
+                getDecimals(src),
+                getDecimals(dest)
+            );
             destAmount = doKyberTrade(
                 src,
                 dest,
                 srcAmount,
-                0,
+                minRate,
                 payable(address(lendingImpl)),
-                platformFeeBps,
+                feeAndRateMode % BPS,
                 platformWallet,
                 hint
             );
         }
-        lendingImpl.repayBorrowTo(platform, msg.sender, dest, destAmount, payAmount, 0);
+        lendingImpl.repayBorrowTo(platform, msg.sender, dest, destAmount, payAmount, feeAndRateMode / BPS);
 
         uint256 numGasBurns;
         if (useGasToken) {
             numGasBurns = burnGasTokensAfterTrade(gasBefore);
         }
-        // TODO: Emit event
+
+        emit KyberTradeAndRepay(
+            msg.sender,
+            platform,
+            src,
+            dest,
+            srcAmount,
+            destAmount,
+            payAmount,
+            feeAndRateMode,
+            platformWallet,
+            hint,
+            useGasToken,
+            numGasBurns
+        );
     }
 
+    /// @dev swap on Uni-clone and repay borrow for sender
+    /// if tradePath.length == 1, no need to swap, use tradePath[0] token to repay directly
+    /// @param payAmount: amount that user wants to pay, if the dest amount (after swap) is higher,
+    ///     the remain amount will be sent back to user's wallet
+    /// @param feeAndRateMode: in case of aave v2, user needs to specify the rateMode to repay
+    ///     to prevent stack too deep, combine fee and rateMode into a single value
+    ///     platformFee: feeAndRateMode % BPS, rateMode: feeAndRateMode / BPS
+    /// Other params are params for trade on Uni-clone
     function swapUniswapAndRepay(
         ISmartWalletLending.LendingPlatform platform,
         IUniswapV2Router02 router,
         uint256 srcAmount,
         uint256 payAmount,
         address[] calldata tradePath,
-        uint256 platformFeeBps,
+        uint256 feeAndRateMode,
         address payable platformWallet,
         bool useGasToken
     )
         external override nonReentrant payable returns (uint256 destAmount)
     {
-        require(lendingImpl != ISmartWalletLending(0));
-        uint256 gasBefore = useGasToken ? gasleft() : 0;
-        IERC20Ext dest = IERC20Ext(tradePath[tradePath.length - 1]);
-        if (tradePath.length == 1) {
-            // just collect src token, no need to swap
-            destAmount = safeForwardToken(
-                dest,
-                msg.sender,
-                payable(address(lendingImpl)),
-                srcAmount
-            );
-        } else {
-            destAmount = swapUniswapInternal(
-                router,
-                srcAmount,
-                payAmount,
-                tradePath,
-                payable(address(lendingImpl)),
-                platformFeeBps,
-                platformWallet
-            );
-        }
-        lendingImpl.repayBorrowTo(platform, msg.sender, dest, destAmount, payAmount, 0);
-
         uint256 numGasBurns;
-        if (useGasToken) {
-            numGasBurns = burnGasTokensAfterTrade(gasBefore);
+        {
+            // scope to prevent stack too deep
+            require(lendingImpl != ISmartWalletLending(0));
+            uint256 gasBefore = useGasToken ? gasleft() : 0;
+            IERC20Ext dest = IERC20Ext(tradePath[tradePath.length - 1]);
+            if (tradePath.length == 1) {
+                // just collect src token, no need to swap
+                destAmount = safeForwardToken(
+                    dest,
+                    msg.sender,
+                    payable(address(lendingImpl)),
+                    srcAmount
+                );
+            } else {
+                destAmount = swapUniswapInternal(
+                    router,
+                    srcAmount,
+                    payAmount,
+                    tradePath,
+                    payable(address(lendingImpl)),
+                    feeAndRateMode % BPS,
+                    platformWallet
+                );
+            }
+            lendingImpl.repayBorrowTo(
+                platform,
+                msg.sender,
+                dest,
+                destAmount,
+                payAmount,
+                feeAndRateMode / BPS
+            );
+            if (useGasToken) {
+                numGasBurns = burnGasTokensAfterTrade(gasBefore);
+            }
         }
-        // TODO: Emit event
+
+        emit UniswapTradeAndRepay(
+            msg.sender,
+            platform,
+            router,
+            tradePath,
+            srcAmount,
+            destAmount,
+            payAmount,
+            feeAndRateMode,
+            platformWallet,
+            useGasToken,
+            numGasBurns
+        );
     }
 
     /// @dev get expected return and conversion rate if using Kyber
@@ -625,7 +718,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
 
     function burnGasTokensAfterTrade(uint256 gasBefore)
         internal virtual
-        returns(uint256 numBurnTokens)
+        returns(uint256 numGasBurns)
     {
         if (burnGasHelper == IBurnGasHelper(0)) return 0;
         IGasToken gasToken;
@@ -635,14 +728,14 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             gasBefore.sub(gasAfter),
             msg.data // forward all data
         ) returns(uint _gasBurns, address _gasToken) {
-            numBurnTokens = _gasBurns;
+            numGasBurns = _gasBurns;
             gasToken = IGasToken(_gasToken);
         } catch {
-            numBurnTokens = 0;
+            numGasBurns = 0;
         }
 
-        if (numBurnTokens > 0 && gasToken != IGasToken(0)) {
-            numBurnTokens = gasToken.freeFromUpTo(msg.sender, numBurnTokens);
+        if (numGasBurns > 0 && gasToken != IGasToken(0)) {
+            numGasBurns = gasToken.freeFromUpTo(msg.sender, numGasBurns);
         }
     }
 
@@ -664,6 +757,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
 
     function safeApproveAllowance(address spender, IERC20Ext token) internal {
         if (token.allowance(address(this), spender) == 0) {
+            getSetDecimals(token);
             token.safeApprove(spender, MAX_ALLOWANCE);
         }
     }

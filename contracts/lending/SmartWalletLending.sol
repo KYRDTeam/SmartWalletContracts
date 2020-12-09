@@ -117,8 +117,10 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
     ) external override onlyAdmin {
         require(_compToken != address(0), "invalid comp token");
         require(_cEth != address(0), "invalid cEth");
+
         compoundData.compToken = _compToken;
         compoundData.cTokens[ETH_TOKEN_ADDRESS] = _cEth;
+
         IERC20Ext[] memory tokens = new IERC20Ext[](_cTokens.length);
         for(uint256 i = 0; i < _cTokens.length; i++) {
             require(_cTokens[i] != address(0), "invalid cToken");
@@ -126,9 +128,12 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
             require(tokens[i] != IERC20Ext(0), "invalid underlying token");
             compoundData.cTokens[tokens[i]] = _cTokens[i];
         }
+
         emit UpdatedCompoudData(_compToken, _cEth, _cTokens, tokens);
     }
 
+    /// @dev deposit to lending platforms like AAVE, COMPOUND
+    ///     expect amount of token should already be in the contract
     function depositTo(
         LendingPlatform platform,
         address payable onBehalfOf,
@@ -140,7 +145,7 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         require(getBalance(token, address(this)) >= amount, "low balance");
         if (platform == LendingPlatform.AAVE_V1) {
             IAaveLendingPoolV1 poolV1 = aaveLendingPool.lendingPoolV1;
-            IERC20Ext aToken = IERC20Ext(ILendingPoolCore(poolV1.core()).getReserveATokenAddress(address(token)));
+            IERC20Ext aToken = IERC20Ext(aaveLendingPool.aTokensV1[token]);
             require(aToken != IERC20Ext(0), "aToken not found");
             // approve allowance if needed
             if (token != ETH_TOKEN_ADDRESS) {
@@ -168,7 +173,7 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
                 pool.deposit(address(token), amount, onBehalfOf, aaveLendingPool.referalCode);
             }
         } else {
-            // COMPOUND
+            // Compound
             address cToken = compoundData.cTokens[token];
             require(cToken != address(0), "token is not supported by Compound");
             uint256 cTokenBalanceBefore = IERC20Ext(cToken).balanceOf(address(this));
@@ -183,6 +188,8 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         }
     }
 
+    /// @dev withdraw from lending platforms like AAVE, COMPOUND
+    ///     expect amount of aToken or cToken should already be in the contract
     function withdrawFrom(
         LendingPlatform platform,
         address payable onBehalfOf,
@@ -243,6 +250,9 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         }
     }
 
+    /// @dev repay borrows to lending platforms like AAVE, COMPOUND
+    ///     expect amount of token should already be in the contract
+    ///     if amount > payAmount, (amount - payAmount) will be sent back to user
     function repayBorrowTo(
         LendingPlatform platform,
         address payable onBehalfOf,
@@ -294,8 +304,6 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         public override view returns(address)
     {
         if (platform == LendingPlatform.AAVE_V1) {
-            // IAaveLendingPoolV1 poolV1 = aaveLendingPool.lendingPoolV1;
-            // return ILendingPoolCore(poolV1.core()).getReserveATokenAddress(address(token));
             return aaveLendingPool.aTokensV1[token];
         } else if (platform == LendingPlatform.AAVE_V2) {
             return aaveLendingPool.aTokensV2[token];

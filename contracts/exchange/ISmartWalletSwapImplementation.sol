@@ -17,7 +17,7 @@ interface ISmartWalletSwapImplementation {
         address platformWallet,
         bytes hint,
         bool useGasToken,
-        uint numberGasBurns
+        uint numGasBurns
     );
 
     event UniswapTrade(
@@ -30,7 +30,73 @@ interface ISmartWalletSwapImplementation {
         uint256 platformFeeBps,
         address platformWallet,
         bool useGasToken,
-        uint numberGasBurns
+        uint256 numGasBurns
+    );
+
+    event KyberTradeAndDeposit(
+        address indexed trader,
+        ISmartWalletLending.LendingPlatform indexed platform,
+        IERC20Ext src,
+        IERC20Ext indexed dest,
+        uint256 srcAmount,
+        uint256 destAmount,
+        uint256 platformFeeBps,
+        address platformWallet,
+        bytes hint,
+        bool useGasToken,
+        uint numGasBurns
+    );
+
+    event UniswapTradeAndDeposit(
+        address indexed trader,
+        ISmartWalletLending.LendingPlatform indexed platform,
+        IUniswapV2Router02 indexed router,
+        address[] tradePath,
+        uint256 srcAmount,
+        uint256 destAmount,
+        uint256 platformFeeBps,
+        address platformWallet,
+        bool useGasToken,
+        uint256 numGasBurns
+    );
+
+    event WithdrawFromLending(
+        ISmartWalletLending.LendingPlatform indexed platform,
+        IERC20Ext token,
+        uint256 amount,
+        uint256 minReturn,
+        uint256 actualReturnAmount,
+        bool useGasToken,
+        uint256 numGasBurns
+    );
+
+    event KyberTradeAndRepay(
+        address indexed trader,
+        ISmartWalletLending.LendingPlatform indexed platform,
+        IERC20Ext src,
+        IERC20Ext indexed dest,
+        uint256 srcAmount,
+        uint256 destAmount,
+        uint256 payAmount,
+        uint256 feeAndRateMode,
+        address platformWallet,
+        bytes hint,
+        bool useGasToken,
+        uint numGasBurns
+    );
+
+    event UniswapTradeAndRepay(
+        address indexed trader,
+        ISmartWalletLending.LendingPlatform indexed platform,
+        IUniswapV2Router02 indexed router,
+        address[] tradePath,
+        uint256 srcAmount,
+        uint256 destAmount,
+        uint256 payAmount,
+        uint256 feeAndRateMode,
+        address platformWallet,
+        bool useGasToken,
+        uint256 numGasBurns
     );
 
     function getExpectedReturnKyber(
@@ -114,7 +180,7 @@ interface ISmartWalletSwapImplementation {
         IERC20Ext dest,
         uint256 srcAmount,
         uint256 payAmount,
-        uint256 platformFeeBps,
+        uint256 feeAndRateMode, // in case aave v2, fee: feeAndRateMode % BPS, rateMode: feeAndRateMode / BPS
         address payable platformWallet,
         bytes calldata hint,
         bool useGasToken
@@ -126,7 +192,7 @@ interface ISmartWalletSwapImplementation {
         uint256 srcAmount,
         uint256 payAmount,
         address[] calldata tradePath,
-        uint256 platformFeeBps,
+        uint256 feeAndRateMode, // in case aave v2, fee: feeAndRateMode % BPS, rateMode: feeAndRateMode / BPS
         address payable platformWallet,
         bool useGasToken
     ) external payable returns (uint256 destAmount);
