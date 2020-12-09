@@ -11,13 +11,13 @@ const IERC20Ext = artifacts.require('@kyber.network/utils-sc/contracts/IERC20Ext
 const {ethAddress, zeroAddress, emptyHint} = require('../test/helper');
 
 let impl;
-let implAddr = "0xe0F245C7851511cf4e587A8249CCc2aF81835Af3";// = '0xb6c8Acf5A547281deD221edBF32e959d98Ad7195';
+let implAddr;// = '0x90dE8d3629B0A7D2c40DBe984e07647326F8AF90';
 let proxy;
-let proxyAddr = "0x329b83b4197a16D02B8BcB81b97357d05eA963FE";// = '0x7005A686499Defa39d84f3AF2fF258508311f0A7';
+let proxyAddr;// = '0xd2Bb6464F4452FDfF8C742dc7cD620d2F5b0BB49';
 let burnGasHelper;
 let burnHelperAddr = '0x5758BD3DC2552e9072d5Ff6c0312816f541A0213';
 let lendingImpl;
-let lendingAddr = "0x97B829F17Af39E7316b719cDa54C9584678Ee9C6";// = '0x5CDF1C2DA25414C27DC0a0F154DB1f024CD480F7';
+let lendingAddr;// = '0xF6A6992181271Aa0aa464a7B2e28E6CD9843eD57';
 
 
 let deployer;
@@ -36,7 +36,6 @@ const kyberProxy = '0xd719c34261e099Fdb33030ac8909d5788D3039C4';
 const aEth = '0x2433A1b6FcF156956599280C3Eb1863247CFE675';
 const cEth = '0xbe839b6d93e3ea47effcca1f27841c917a8794f3';
 const comp = '0x1fe16de955718cfab7a44605458ab023838c2793';
-const comptroller = '0x54188bbedd7b68228fa89cbdda5e3e930459c6c6';
 const compTokens = [
   '0x9e95c0b2412ce50c37a121622308e7a6177f819d',
   '0x8354c3a332ffb24e3a27be252e01acfe65a33b35',
@@ -59,7 +58,9 @@ async function main() {
   console.log(`Sending transactions with gas price: ${gasPrice.toString(10)} (${gasPrice.div(new BN(10).pow(new BN(9))).toString(10)} gweis)`);
 
   if (burnHelperAddr == undefined) {
-    burnGasHelper = await BurnGasHelper.new(deployer, gst2);
+    burnGasHelper = await BurnGasHelper.new(
+      deployer, gst2, 14154, 6870, 24000
+    );
     burnHelperAddr = burnGasHelper.address;
     console.log(`Deployed burn helper at ${burnHelperAddr}`);
   } else {
@@ -82,44 +83,44 @@ async function main() {
     console.log(`Deployed lending implementation at ${lendingAddr}`);
   } else {
     lendingImpl = await SmartWalletLending.at(lendingAddr);
-    console.log(`Interacting lending implementation at ${lendingImpl.address}`);
+    console.log(`Interacting swap implementation at ${lendingImpl.address}`);
   }
 
   if (proxyAddr == undefined) {
-    proxy = await SmartWalletSwapProxy.new(deployer, impl.address, kyberProxy, [uniswapRouter]);
+    proxy = await SmartWalletSwapProxy.new(deployer, impl.address);
     proxyAddr = proxy.address;
     console.log(`Deployed proxy at ${proxy.address}`);
   } else {
     proxy = await SmartWalletSwapProxy.at(proxyAddr);
     console.log(`Interacting proxy at ${proxy.address}`);
+    await proxy.updateNewImplementation(impl.address);
+    console.log(`Updated implementation: ${impl.address}`)
   }
 
   let swapProxy = await SmartWalletSwapImplementation.at(proxy.address);
-  // await proxy.updateNewImplementation(impl.address);
-  // console.log(`Updated implementation: ${impl.address}`)
-  // await swapProxy.updateLendingImplementation(lendingAddr);
-  // console.log(`Updated lending impl to proxy ${lendingAddr}`);
-  // await swapProxy.updateBurnGasHelper(burnGasHelper.address);
-  // console.log(`Updated burn gas helper for proxy`);
-  // await swapProxy.updateKyberProxy(kyberProxy, { gasPrice: gasPrice });
-  // console.log(`Updated kyber proxy`);
-  // await swapProxy.updateUniswapRouters([uniswapRouter], true, { gasPrice: gasPrice });
-  // console.log(`Added uniswap routers`);
-  // await swapProxy.updateSupportedPlatformWallets(supportedWallets, true, { gasPrice: gasPrice });
-  // console.log(`Added supported platform wallets`);
+  await swapProxy.updateLendingImplementation(lendingAddr);
+  console.log(`Updated lending impl to proxy ${lendingAddr}`);
+  await swapProxy.updateBurnGasHelper(burnGasHelper.address);
+  console.log(`Updated burn gas helper for proxy`);
+  await swapProxy.updateKyberProxy(kyberProxy, { gasPrice: gasPrice });
+  console.log(`Updated kyber proxy`);
+  await swapProxy.updateUniswapRouters([uniswapRouter], true, { gasPrice: gasPrice });
+  console.log(`Added uniswap routers`);
+  await swapProxy.updateSupportedPlatformWallets(supportedWallets, true, { gasPrice: gasPrice });
+  console.log(`Added supported platform wallets`);
 
-  // await lendingImpl.updateAaveLendingPoolData(
-  //   zeroAddress,
-  //   '0x9E5C7835E4b13368fd628196C4f1c6cEc89673Fa',
-  //   0,
-  //   '0x9E5C7835E4b13368fd628196C4f1c6cEc89673Fa', // weth
-  //   [ethAddress]
-  // );
-  // console.log(`Updated aave lending pool data to lending impl`);
-  // await lendingImpl.updateCompoundData(comptroller, cEth, []);
-  // console.log(`Updated compound data to lending impl`);
-  // await lendingImpl.updateSwapImplementation(proxy.address);
-  // console.log(`Updated proxy to lending impl`)
+  await lendingImpl.updateAaveLendingPoolData(
+    zeroAddress,
+    '0x9E5C7835E4b13368fd628196C4f1c6cEc89673Fa',
+    0,
+    '0x9E5C7835E4b13368fd628196C4f1c6cEc89673Fa', // weth
+    [ethAddress]
+  );
+  console.log(`Updated aave lending pool data to lending impl`);
+  await lendingImpl.updateCompoundData(comp, cEth, compTokens);
+  console.log(`Updated compound data to lending impl`);
+  await lendingImpl.updateSwapImplementation(proxy.address);
+  console.log(`Updated proxy to lending impl`)
 
   // for(let i = 0; i < supportedTokens.length; i++) {
   //   let token = await IERC20Ext.at(supportedTokens[i]);
@@ -127,41 +128,15 @@ async function main() {
   //   console.log(`Approved allowances for token: ${supportedTokens[i]}`);
   // }
 
-  // let gasToken = await GasToken.at(gst2);
-  // await gasToken.mint(160);
-  // console.log(`Minted gas`)
-  // await gasToken.approve(swapProxy.address, new BN(2).pow(new BN(255)));
-  // console.log(`Approved gas token`)
+  let gasToken = await GasToken.at(gst2);
+  await gasToken.mint(160);
+  console.log(`Minted gas`)
+  await gasToken.approve(swapProxy.address, new BN(2).pow(new BN(255)));
+  console.log(`Approved gas token`)
   let kncAmount = new BN(10).pow(new BN(18));
   let kncToken = await IERC20Ext.at('0x7b2810576aa1cce68f2b118cef1f36467c648f92');
-  // await kncToken.approve(swapProxy.address, new BN(2).pow(new BN(255)), { gasPrice: gasPrice });
-  // console.log(`Approved knc`)
-  let tx = await swapProxy.swapKyber(
-    kncToken.address,
-    ethAddress,
-    kncAmount,
-    new BN(0),
-    deployer,
-    8,
-    supportedWallets[0],
-    emptyHint,
-    true,
-    { gas: 3000000 }
-  );
-  console.log(`Swap Kyber KNC -> ETH, gas used: ${tx.receipt.gasUsed}`);
-  tx = await swapProxy.swapKyber(
-    ethAddress,
-    kncToken.address,
-    new BN(10).pow(new BN(16)),
-    new BN(0),
-    deployer,
-    8,
-    supportedWallets[0],
-    emptyHint,
-    true,
-    { value: new BN(10).pow(new BN(16)), gas: 3000000 }
-  );
-  console.log(`Swap Kyber ETH -> KNC, gas used: ${tx.receipt.gasUsed}`);
+  await kncToken.approve(swapProxy.address, new BN(2).pow(new BN(255)), { gasPrice: gasPrice });
+  console.log(`Approved knc`)
   let tx1 = await swapProxy.swapKyberAndDeposit(
     0, // aave v1
     kncToken.address,
@@ -174,18 +149,46 @@ async function main() {
     true,
     { gas: 3000000 }
   );
-  console.log(`Swap Kyber KNC -> ETH, gas used: ${tx.receipt.gasUsed}`);
-  tx = await swapProxy.swapKyber(
+  console.log(`Swap Kyber and deposit aave v1 gas used: ${tx1.receipt.gasUsed}`);
+  let ethAmount = new BN(10).pow(new BN(16));
+  tx1 = await swapProxy.swapKyberAndDeposit(
+    0, // aave v1
     ethAddress,
-    kncToken.address,
-    new BN(10).pow(new BN(16)),
+    ethAddress,
+    ethAmount,
     new BN(0),
-    deployer,
     8,
     supportedWallets[0],
     emptyHint,
     true,
-    { value: new BN(10).pow(new BN(16)), gas: 3000000 }
+    { value: ethAmount, gas: 3000000 }
+  );
+  console.log(`Deposit aave v1 gas used: ${tx1.receipt.gasUsed}`);
+  let tx3 = await swapProxy.swapKyberAndDeposit(
+    2, //compound
+    kncToken.address,
+    ethAddress,
+    kncAmount,
+    new BN(0),
+    8,
+    supportedWallets[0],
+    emptyHint,
+    true,
+    { gas: 3000000 }
+  );
+  console.log(`Swap Kyber and deposit compound gas used: ${tx3.receipt.gasUsed}`);
+  ethAmount = new BN(10).pow(new BN(16));
+  tx3 = await swapProxy.swapKyberAndDeposit(
+    2, //compound
+    ethAddress,
+    ethAddress,
+    ethAmount,
+    new BN(0),
+    8,
+    supportedWallets[0],
+    emptyHint,
+    true,
+    { value: ethAmount, gas: 3000000 }
   );
   console.log(`Deposit compound gas used: ${tx3.receipt.gasUsed}`);
 
@@ -204,10 +207,8 @@ async function main() {
   await cEthToken.approve(swapProxy.address, new BN(2).pow(new BN(255)));
   tx4 = await swapProxy.withdrawFromLendingPlatform(2, ethAddress, cEthAmount, new BN(0), true, { gas: 2000000 });
   console.log(`Withdraw eth from compound, gas used: ${tx4.receipt.gasUsed}`);
-
-  let tx5 = await swapProxy.claimComp([deployer], [], true, true, true, { gas: 2000000 });
-  console.log(`Claim comp gas used: ${tx5.receipt.gasUsed}`);
 }
+
 
 main()
   .then(() => process.exit(0))
