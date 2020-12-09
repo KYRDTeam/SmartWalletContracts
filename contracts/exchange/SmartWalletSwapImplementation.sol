@@ -138,7 +138,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         uint256 numGasBurns = 0;
         // burn gas token if needed
         if (useGasToken) {
-            numGasBurns = burnGasTokensAfterTrade(gasBefore);
+            numGasBurns = burnGasTokensAfter(gasBefore);
         }
         emit KyberTrade(
             msg.sender,
@@ -181,7 +181,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         );
         uint256 numGasBurns = 0;
         if (useGasToken) {
-            numGasBurns = burnGasTokensAfterTrade(gasBefore);
+            numGasBurns = burnGasTokensAfter(gasBefore);
         }
 
         emit UniswapTrade(
@@ -241,7 +241,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
 
         uint256 numGasBurns = 0;
         if (useGasToken) {
-            numGasBurns = burnGasTokensAfterTrade(gasBefore);
+            numGasBurns = burnGasTokensAfter(gasBefore);
         }
 
         emit KyberTradeAndDeposit(
@@ -311,7 +311,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
 
         uint256 numGasBurns = 0;
         if (useGasToken) {
-            numGasBurns = burnGasTokensAfterTrade(gasBefore);
+            numGasBurns = burnGasTokensAfter(gasBefore);
         }
 
         emit UniswapTradeAndDeposit(
@@ -352,7 +352,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
 
         uint256 numGasBurns;
         if (useGasToken) {
-            numGasBurns = burnGasTokensAfterTrade(gasBefore);
+            numGasBurns = burnGasTokensAfter(gasBefore);
         }
         emit WithdrawFromLending(
             platform,
@@ -419,7 +419,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
 
         uint256 numGasBurns;
         if (useGasToken) {
-            numGasBurns = burnGasTokensAfterTrade(gasBefore);
+            numGasBurns = burnGasTokensAfter(gasBefore);
         }
 
         emit KyberTradeAndRepay(
@@ -492,7 +492,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                 feeAndRateMode / BPS
             );
             if (useGasToken) {
-                numGasBurns = burnGasTokensAfterTrade(gasBefore);
+                numGasBurns = burnGasTokensAfter(gasBefore);
             }
         }
 
@@ -509,6 +509,20 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             useGasToken,
             numGasBurns
         );
+    }
+
+    function claimComp(
+        address[] calldata holders,
+        ICompErc20[] calldata cTokens,
+        bool borrowers,
+        bool suppliers,
+        bool useGasToken
+    ) external override nonReentrant {
+        uint256 gasBefore = useGasToken ? gasleft() : 0;
+        lendingImpl.claimComp(holders, cTokens, borrowers, suppliers);
+        if (useGasToken) {
+            burnGasTokensAfter(gasBefore);
+        }
     }
 
     /// @dev get expected return and conversion rate if using Kyber
@@ -716,7 +730,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         }
     }
 
-    function burnGasTokensAfterTrade(uint256 gasBefore)
+    function burnGasTokensAfter(uint256 gasBefore)
         internal virtual
         returns(uint256 numGasBurns)
     {

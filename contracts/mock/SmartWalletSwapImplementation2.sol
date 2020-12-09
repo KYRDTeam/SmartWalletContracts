@@ -6,40 +6,7 @@ import "../exchange/SmartWalletSwapImplementation.sol";
 /// Version 2 of implementation to test upgrade
 contract SmartWalletSwapImplementation2 is SmartWalletSwapImplementation {
 
-    using SafeERC20 for IERC20Ext;
-    using SafeMath for uint256;
-
     mapping(address => bool) public isUserBlocked;
-
-    event KyberTrade(
-        IERC20Ext indexed src,
-        IERC20Ext indexed dest,
-        uint256 srcAmount,
-        uint256 minConversionRate,
-        address recipient,
-        uint256 platformFeeBps,
-        address platformWallet,
-        bytes hint,
-        bool useGasToken,
-        uint numberGasBurns
-    );
-
-    event UniswapTrade(
-        address indexed router,
-        address[] tradePath,
-        uint256 srcAmount,
-        uint256 minDestAmount,
-        address recipient,
-        uint256 platformFeeBps,
-        address platformWallet,
-        bool useGasToken,
-        uint numberGasBurns
-    );
-
-    event SupportedPlatformWalletsUpdated(address[] indexed wallets, bool indexed isSupported);
-    event UpdateKyberProxy(IKyberProxy indexed newProxy);
-    event UpdateUniswapRouters(IUniswapV2Router02[] indexed uniswapRouters, bool isAdded);
-    event ApproveAllowances(IERC20Ext[] indexed tokens, address[] indexed spenders, bool isReset);
 
     constructor(address _admin) public SmartWalletSwapImplementation(_admin) {}
 

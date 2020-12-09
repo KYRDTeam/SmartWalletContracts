@@ -2,6 +2,7 @@ pragma solidity 0.6.6;
 pragma experimental ABIEncoderV2;
 
 import "../wrappers/AAVE/ILendingPoolCore.sol";
+import "../interfaces/IComptroller.sol";
 import "./ISmartWalletLending.sol";
 import "@kyber.network/utils-sc/contracts/Utils.sol";
 import "@kyber.network/utils-sc/contracts/Withdrawable.sol";
@@ -24,7 +25,7 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
     AaveLendingPoolData public aaveLendingPool;
 
     struct CompoundData {
-        address compToken;
+        address comptroller;
         mapping(IERC20Ext => address) cTokens;
     }
 
@@ -46,7 +47,7 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         address[] aTokensV2
     );
     event UpdatedCompoudData(
-        address compToken,
+        address comptroller,
         address cEth,
         address[] cTokens,
         IERC20Ext[] underlyingTokens
@@ -111,25 +112,46 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
     }
 
     function updateCompoundData(
-        address _compToken,
+        address _comptroller,
         address _cEth,
         address[] calldata _cTokens
     ) external override onlyAdmin {
-        require(_compToken != address(0), "invalid comp token");
+        require(_comptroller != address(0), "invalid _comptroller");
         require(_cEth != address(0), "invalid cEth");
 
-        compoundData.compToken = _compToken;
+        compoundData.comptroller = _comptroller;
         compoundData.cTokens[ETH_TOKEN_ADDRESS] = _cEth;
 
-        IERC20Ext[] memory tokens = new IERC20Ext[](_cTokens.length);
-        for(uint256 i = 0; i < _cTokens.length; i++) {
-            require(_cTokens[i] != address(0), "invalid cToken");
-            tokens[i] = IERC20Ext(ICompErc20(_cTokens[i]).underlying());
-            require(tokens[i] != IERC20Ext(0), "invalid underlying token");
-            compoundData.cTokens[tokens[i]] = _cTokens[i];
+        IERC20Ext[] memory tokens;
+        if (_cTokens.length > 0) {
+            // add specific markets
+            tokens = new IERC20Ext[](_cTokens.length);
+            for(uint256 i = 0; i < _cTokens.length; i++) {
+                require(_cTokens[i] != address(0), "invalid cToken");
+                tokens[i] = IERC20Ext(ICompErc20(_cTokens[i]).underlying());
+                require(tokens[i] != IERC20Ext(0), "invalid underlying token");
+                compoundData.cTokens[tokens[i]] = _cTokens[i];
+            }
+            emit UpdatedCompoudData(_comptroller, _cEth, _cTokens, tokens);
+        } else {
+            // add all markets
+            ICompErc20[] memory markets = IComptroller(_comptroller).getAllMarkets();
+            tokens = new IERC20Ext[](markets.length);
+            address[] memory cTokens = new address[](markets.length);
+            for(uint256 i = 0; i < markets.length; i++) {
+                if (address(markets[i]) == _cEth) {
+                    tokens[i] = ETH_TOKEN_ADDRESS;
+                    cTokens[i] = _cEth;
+                    continue;
+                }
+                require(markets[i] != ICompErc20(0), "invalid cToken");
+                tokens[i] = IERC20Ext(markets[i].underlying());
+                require(tokens[i] != IERC20Ext(0), "invalid underlying token");
+                cTokens[i] = address(markets[i]);
+                compoundData.cTokens[tokens[i]] = cTokens[i];
+            }
+            emit UpdatedCompoudData(_comptroller, _cEth, cTokens, tokens);
         }
-
-        emit UpdatedCompoudData(_compToken, _cEth, _cTokens, tokens);
     }
 
     /// @dev deposit to lending platforms like AAVE, COMPOUND
@@ -298,6 +320,26 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
                 ICompErc20(cToken).repayBorrowBehalf(onBehalfOf, amount);
             }
         }
+    }
+
+    function claimComp(
+        address[] calldata holders,
+        ICompErc20[] calldata cTokens,
+        bool borrowers,
+        bool suppliers
+    )
+        external override onlySwapImpl
+    {
+        require(holders.length > 0, "no holders");
+        IComptroller comptroller = IComptroller(compoundData.comptroller);
+        if (cTokens.length == 0) {
+            // claim for all markets
+            ICompErc20[] memory markets = comptroller.getAllMarkets();
+            comptroller.claimComp(holders, markets, borrowers, suppliers);
+        } else {
+            comptroller.claimComp(holders, cTokens, borrowers, suppliers);
+        }
+        emit ClaimedComp(holders, cTokens, borrowers, suppliers);
     }
 
     function getLendingToken(LendingPlatform platform, IERC20Ext token)

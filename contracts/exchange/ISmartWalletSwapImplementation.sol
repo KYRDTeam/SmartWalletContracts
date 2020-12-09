@@ -196,4 +196,12 @@ interface ISmartWalletSwapImplementation {
         address payable platformWallet,
         bool useGasToken
     ) external payable returns (uint256 destAmount);
+
+    function claimComp(
+        address[] calldata holders,
+        ICompErc20[] calldata cTokens,
+        bool borrowers,
+        bool suppliers,
+        bool useGasToken
+    ) external;
 }

@@ -9,6 +9,13 @@ import "../interfaces/ICompErc20.sol";
 
 interface ISmartWalletLending {
 
+    event ClaimedComp(
+        address[] holders,
+        ICompErc20[] cTokens,
+        bool borrowers,
+        bool suppliers
+    );
+
     enum LendingPlatform { AAVE_V1, AAVE_V2, COMPOUND }
 
     function updateAaveLendingPoolData(
@@ -47,6 +54,13 @@ interface ISmartWalletLending {
         uint256 amount,
         uint256 payAmount,
         uint256 rateMode // only for aave v2
+    ) external;
+
+    function claimComp(
+        address[] calldata holders,
+        ICompErc20[] calldata cTokens,
+        bool borrowers,
+        bool suppliers
     ) external;
 
     function getLendingToken(LendingPlatform platform, IERC20Ext token) external view returns(address);
