@@ -11,13 +11,13 @@ const IERC20Ext = artifacts.require('@kyber.network/utils-sc/contracts/IERC20Ext
 const {ethAddress, zeroAddress, emptyHint} = require('../test/helper');
 
 let impl;
-let implAddr = "0xe0F245C7851511cf4e587A8249CCc2aF81835Af3";// = '0xb6c8Acf5A547281deD221edBF32e959d98Ad7195';
+let implAddr = '0x57353b0e906e6857848d0b983a60d90B1cd71f5f';
 let proxy;
 let proxyAddr = "0x329b83b4197a16D02B8BcB81b97357d05eA963FE";// = '0x7005A686499Defa39d84f3AF2fF258508311f0A7';
 let burnGasHelper;
 let burnHelperAddr = '0x5758BD3DC2552e9072d5Ff6c0312816f541A0213';
 let lendingImpl;
-let lendingAddr = "0x97B829F17Af39E7316b719cDa54C9584678Ee9C6";// = '0x5CDF1C2DA25414C27DC0a0F154DB1f024CD480F7';
+let lendingAddr = '0x01F8A6A8788Af4c32a363F6d85A4CAF19491eC90';
 
 
 let deployer;
@@ -94,9 +94,10 @@ async function main() {
     console.log(`Interacting proxy at ${proxy.address}`);
   }
 
-  let swapProxy = await SmartWalletSwapImplementation.at(proxy.address);
   // await proxy.updateNewImplementation(impl.address);
-  // console.log(`Updated implementation: ${impl.address}`)
+  // console.log(`Updated implementation: ${impl.address}`);
+
+  let swapProxy = await SmartWalletSwapImplementation.at(proxy.address);
   // await swapProxy.updateLendingImplementation(lendingAddr);
   // console.log(`Updated lending impl to proxy ${lendingAddr}`);
   // await swapProxy.updateBurnGasHelper(burnGasHelper.address);
@@ -136,32 +137,6 @@ async function main() {
   let kncToken = await IERC20Ext.at('0x7b2810576aa1cce68f2b118cef1f36467c648f92');
   // await kncToken.approve(swapProxy.address, new BN(2).pow(new BN(255)), { gasPrice: gasPrice });
   // console.log(`Approved knc`)
-  let tx = await swapProxy.swapKyber(
-    kncToken.address,
-    ethAddress,
-    kncAmount,
-    new BN(0),
-    deployer,
-    8,
-    supportedWallets[0],
-    emptyHint,
-    true,
-    { gas: 3000000 }
-  );
-  console.log(`Swap Kyber KNC -> ETH, gas used: ${tx.receipt.gasUsed}`);
-  tx = await swapProxy.swapKyber(
-    ethAddress,
-    kncToken.address,
-    new BN(10).pow(new BN(16)),
-    new BN(0),
-    deployer,
-    8,
-    supportedWallets[0],
-    emptyHint,
-    true,
-    { value: new BN(10).pow(new BN(16)), gas: 3000000 }
-  );
-  console.log(`Swap Kyber ETH -> KNC, gas used: ${tx.receipt.gasUsed}`);
   let tx1 = await swapProxy.swapKyberAndDeposit(
     0, // aave v1
     kncToken.address,
@@ -174,18 +149,46 @@ async function main() {
     true,
     { gas: 3000000 }
   );
-  console.log(`Swap Kyber KNC -> ETH, gas used: ${tx.receipt.gasUsed}`);
-  tx = await swapProxy.swapKyber(
+  console.log(`Swap Kyber and deposit aave v1 gas used: ${tx1.receipt.gasUsed}`);
+  let ethAmount = new BN(10).pow(new BN(16));
+  tx1 = await swapProxy.swapKyberAndDeposit(
+    0, // aave v1
     ethAddress,
-    kncToken.address,
-    new BN(10).pow(new BN(16)),
+    ethAddress,
+    ethAmount,
     new BN(0),
-    deployer,
     8,
     supportedWallets[0],
     emptyHint,
     true,
-    { value: new BN(10).pow(new BN(16)), gas: 3000000 }
+    { value: ethAmount, gas: 3000000 }
+  );
+  console.log(`Deposit aave v1 gas used: ${tx1.receipt.gasUsed}`);
+  let tx3 = await swapProxy.swapKyberAndDeposit(
+    2, //compound
+    kncToken.address,
+    ethAddress,
+    kncAmount,
+    new BN(0),
+    8,
+    supportedWallets[0],
+    emptyHint,
+    true,
+    { gas: 3000000 }
+  );
+  console.log(`Swap Kyber and deposit compound gas used: ${tx3.receipt.gasUsed}`);
+  ethAmount = new BN(10).pow(new BN(16));
+  tx3 = await swapProxy.swapKyberAndDeposit(
+    2, //compound
+    ethAddress,
+    ethAddress,
+    ethAmount,
+    new BN(0),
+    8,
+    supportedWallets[0],
+    emptyHint,
+    true,
+    { value: ethAmount, gas: 3000000 }
   );
   console.log(`Deposit compound gas used: ${tx3.receipt.gasUsed}`);
 
