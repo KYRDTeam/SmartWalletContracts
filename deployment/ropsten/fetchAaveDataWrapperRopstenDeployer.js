@@ -36,9 +36,9 @@ async function main() {
     console.log(`Interacting fetch aave data wrapper at ${fetchDataWrapper.address}`);
   }
 
-  let userData = await fetchDataWrapper.getSingleUserAccountData(ropstenLendingPool, deployer);
+  let userData = await fetchDataWrapper.getSingleUserAccountData(ropstenLendingPool, true, deployer);
   console.log(userData);
-  userData = await fetchDataWrapper.getSingleUserReserveData(ropstenLendingPool, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', deployer);
+  userData = await fetchDataWrapper.getSingleUserReserveData(ropstenLendingPool, true, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', deployer);
   console.log(userData);
 }
 
