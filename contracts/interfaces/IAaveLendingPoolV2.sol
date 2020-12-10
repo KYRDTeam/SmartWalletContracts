@@ -2,6 +2,7 @@ pragma solidity 0.6.6;
 pragma experimental ABIEncoderV2;
 
 import "../wrappers/AAVE/DataTypes.sol";
+import "../wrappers/AAVE/IProtocolDataProvider.sol";
 
 interface IAaveLendingPoolV2 {
 
@@ -82,6 +83,11 @@ interface IAaveLendingPoolV2 {
     address onBehalfOf
   ) external returns (uint256);
 
+  /**
+   * @dev Returns the state and configuration of the reserve
+   * @param asset The address of the underlying asset of the reserve
+   * @return The state of the reserve
+   **/
   function getReserveData(address asset)
     external
     view
