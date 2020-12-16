@@ -14,6 +14,9 @@ module.exports = {
       timeout: 200000
     },
     hardhat: {
+      forking: {
+        url: process.env.NODE_URL
+      },
       accounts: [
         // 20 accounts with 10^14 ETH each 
         // Addresses:

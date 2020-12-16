@@ -25,12 +25,7 @@ contract FetchAaveDataWrapper is Withdrawable, IFetchAaveDataWrapper {
         if (isV1) {
             return ILendingPoolV1(pool).getReserves();
         }
-        IProtocolDataProvider.TokenData[] memory data =
-            dataProviderV2(pool).getAllReservesTokens();
-        reserves = new address[](data.length);
-        for(uint256 i = 0; i < reserves.length; i++) {
-            reserves[i] = data[i].tokenAddress;
-        }
+        return ILendingPoolV2(pool).getReservesList();
     }
 
     function getReservesConfigurationData(address pool, bool isV1, address[] calldata _reserves)
@@ -57,7 +52,7 @@ contract FetchAaveDataWrapper is Withdrawable, IFetchAaveDataWrapper {
                 configsData[i].aTokenAddress =
                     ILendingPoolCore(ILendingPoolV1(pool).core()).getReserveATokenAddress(_reserves[i]);
             } else {
-                IProtocolDataProvider provider = dataProviderV2(pool);
+                IProtocolDataProvider provider = IProtocolDataProvider(pool);
                 (
                     , // decimals
                     configsData[i].ltv,
@@ -100,7 +95,7 @@ contract FetchAaveDataWrapper is Withdrawable, IFetchAaveDataWrapper {
                 reservesData[i].averageStableBorrowRate = core.getReserveCurrentAverageStableBorrowRate(_reserves[i]);
             }
         } else {
-            IProtocolDataProvider provider = dataProviderV2(pool);
+            IProtocolDataProvider provider = IProtocolDataProvider(pool);
             for(uint256 i = 0; i < _reserves.length; i++) {
                 (
                     reservesData[i].totalLiquidity,
@@ -157,7 +152,7 @@ contract FetchAaveDataWrapper is Withdrawable, IFetchAaveDataWrapper {
                 );
             } else {
                 userReservesData[i] = getSingleUserReserveDataV2(
-                    dataProviderV2(pool),
+                    IProtocolDataProvider(pool),
                     _reserves[i],
                     _user
                 );
@@ -183,7 +178,7 @@ contract FetchAaveDataWrapper is Withdrawable, IFetchAaveDataWrapper {
                 );
             } else {
                 userReservesData[i] = getSingleUserReserveDataV2(
-                    dataProviderV2(pool),
+                    IProtocolDataProvider(pool),
                     _reserve,
                     _users[i]
                 );
@@ -275,9 +270,5 @@ contract FetchAaveDataWrapper is Withdrawable, IFetchAaveDataWrapper {
                 data.ltv,
                 data.healthFactor
         ) = ILendingPoolV2(pool).getUserAccountData(_user);
-    }
-
-    function dataProviderV2(address poolV2) internal view returns(IProtocolDataProvider) {
-        return ILendingPoolV2(poolV2).getAddressesProvider();
     }
 }
