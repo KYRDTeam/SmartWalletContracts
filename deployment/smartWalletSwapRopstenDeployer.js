@@ -11,13 +11,13 @@ const IERC20Ext = artifacts.require('@kyber.network/utils-sc/contracts/IERC20Ext
 const {ethAddress, zeroAddress, emptyHint} = require('../test/helper');
 
 let impl;
-let implAddr = '0x57353b0e906e6857848d0b983a60d90B1cd71f5f';
+let implAddr = "0xe43d22C52A67142d642F3c37B1293878F8F84C3b"; // = '0x57353b0e906e6857848d0b983a60d90B1cd71f5f';
 let proxy;
-let proxyAddr = "0x329b83b4197a16D02B8BcB81b97357d05eA963FE";// = '0x7005A686499Defa39d84f3AF2fF258508311f0A7';
+let proxyAddr = "0x17b884A5a68cd9Fa4525BEaA4a0013e9C6D83Ae0";// = '0x7005A686499Defa39d84f3AF2fF258508311f0A7';
 let burnGasHelper;
 let burnHelperAddr = '0x5758BD3DC2552e9072d5Ff6c0312816f541A0213';
 let lendingImpl;
-let lendingAddr = '0x01F8A6A8788Af4c32a363F6d85A4CAF19491eC90';
+let lendingAddr = "0xdCEE5c09A857e4Ee7a0B735c0997fAC90ACe586b";// = '0x01F8A6A8788Af4c32a363F6d85A4CAF19491eC90';
 
 
 let deployer;
@@ -128,7 +128,7 @@ async function main() {
   //   console.log(`Approved allowances for token: ${supportedTokens[i]}`);
   // }
 
-  // let gasToken = await GasToken.at(gst2);
+  let gasToken = await GasToken.at(gst2);
   // await gasToken.mint(160);
   // console.log(`Minted gas`)
   // await gasToken.approve(swapProxy.address, new BN(2).pow(new BN(255)));
@@ -157,7 +157,7 @@ async function main() {
     ethAddress,
     ethAmount,
     new BN(0),
-    8,
+    0,
     supportedWallets[0],
     emptyHint,
     true,
@@ -192,24 +192,24 @@ async function main() {
   );
   console.log(`Deposit compound gas used: ${tx3.receipt.gasUsed}`);
 
-  let aEthToken = await IERC20Ext.at(aEth);
-  let aEthBalance = await aEthToken.balanceOf(deployer);
-  let aEthAmount = aEthBalance.div(new BN(5));
-  console.log(`aETH balance: ${aEthBalance.toString(10)}`);
-  await aEthToken.approve(swapProxy.address, new BN(2).pow(new BN(255)));
-  let tx4 = await swapProxy.withdrawFromLendingPlatform(0, ethAddress, aEthAmount, new BN(0), true, { gas: 2000000 });
-  console.log(`Withdraw eth from aave v1, gas used: ${tx4.receipt.gasUsed}`);
+  // let aEthToken = await IERC20Ext.at(aEth);
+  // let aEthBalance = await aEthToken.balanceOf(deployer);
+  // let aEthAmount = aEthBalance.div(new BN(5));
+  // console.log(`aETH balance: ${aEthBalance.toString(10)}`);
+  // // await aEthToken.approve(swapProxy.address, new BN(2).pow(new BN(255)));
+  // let tx4 = await swapProxy.withdrawFromLendingPlatform(0, ethAddress, aEthAmount, new BN(0), true, { gas: 2000000 });
+  // console.log(`Withdraw eth from aave v1, gas used: ${tx4.receipt.gasUsed}`);
 
-  let cEthToken = await IERC20Ext.at(cEth);
-  let cEthBalance = await cEthToken.balanceOf(deployer);
-  let cEthAmount = cEthBalance.div(new BN(5));
-  console.log(`cETH balance: ${cEthBalance.toString(10)}`);
-  await cEthToken.approve(swapProxy.address, new BN(2).pow(new BN(255)));
-  tx4 = await swapProxy.withdrawFromLendingPlatform(2, ethAddress, cEthAmount, new BN(0), true, { gas: 2000000 });
-  console.log(`Withdraw eth from compound, gas used: ${tx4.receipt.gasUsed}`);
+  // let cEthToken = await IERC20Ext.at(cEth);
+  // let cEthBalance = await cEthToken.balanceOf(deployer);
+  // let cEthAmount = cEthBalance.div(new BN(5));
+  // console.log(`cETH balance: ${cEthBalance.toString(10)}`);
+  // await cEthToken.approve(swapProxy.address, new BN(2).pow(new BN(255)));
+  // tx4 = await swapProxy.withdrawFromLendingPlatform(2, ethAddress, cEthAmount, new BN(0), true, { gas: 2000000 });
+  // console.log(`Withdraw eth from compound, gas used: ${tx4.receipt.gasUsed}`);
 
-  let tx5 = await swapProxy.claimComp([deployer], [], true, true, true, { gas: 2000000 });
-  console.log(`Claim comp gas used: ${tx5.receipt.gasUsed}`);
+  // let tx5 = await swapProxy.claimComp([deployer], [], true, true, true, { gas: 2000000 });
+  // console.log(`Claim comp gas used: ${tx5.receipt.gasUsed}`);
 }
 
 main()
