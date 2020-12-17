@@ -217,11 +217,13 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         uint256 gasBefore = useGasToken ? gasleft() : 0;
         if (src == dest) {
             // just collect src token, no need to swap
-            destAmount = safeForwardToken(
+            destAmount = safeForwardTokenAndCollectFee(
                 src,
                 msg.sender,
                 payable(address(lendingImpl)),
-                srcAmount
+                srcAmount,
+                platformFeeBps,
+                platformWallet
             );
         } else {
             destAmount = doKyberTrade(
@@ -287,11 +289,13 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             IERC20Ext dest = IERC20Ext(tradePath[tradePath.length - 1]);
             if (tradePath.length == 1) {
                 // just collect src token, no need to swap
-                destAmount = safeForwardToken(
+                destAmount = safeForwardTokenAndCollectFee(
                     dest,
                     msg.sender,
                     payable(address(lendingImpl)),
-                    srcAmount
+                    srcAmount,
+                    platformFeeBps,
+                    platformWallet
                 );
             } else {
                 destAmount = swapUniswapInternal(
@@ -345,7 +349,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         require(lendingImpl != ISmartWalletLending(0));
         uint256 gasBefore = useGasToken ? gasleft() : 0;
         address lendingToken = lendingImpl.getLendingToken(platform, token);
-        require(lendingToken != address(0), "token not supported");
+        require(lendingToken != address(0), "unsupported token");
         IERC20Ext(lendingToken).safeTransferFrom(msg.sender, address(lendingImpl), amount);
 
         returnedAmount = lendingImpl.withdrawFrom(platform, msg.sender, token, amount, minReturn);
@@ -390,11 +394,13 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         uint256 gasBefore = useGasToken ? gasleft() : 0;
         if (src == dest) {
             // just collect src token, no need to swap
-            destAmount = safeForwardToken(
+            destAmount = safeForwardTokenAndCollectFee(
                 src,
                 msg.sender,
                 payable(address(lendingImpl)),
-                srcAmount
+                srcAmount,
+                0, // no fee if repay directly
+                platformWallet
             );
         } else {
             // use min rate so it can return earlier if failed to swap
@@ -466,11 +472,13 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             IERC20Ext dest = IERC20Ext(tradePath[tradePath.length - 1]);
             if (tradePath.length == 1) {
                 // just collect src token, no need to swap
-                destAmount = safeForwardToken(
+                destAmount = safeForwardTokenAndCollectFee(
                     dest,
                     msg.sender,
                     payable(address(lendingImpl)),
-                    srcAmount
+                    srcAmount,
+                    0, // no fee if repay directly
+                    platformWallet
                 );
             } else {
                 destAmount = swapUniswapInternal(
@@ -631,8 +639,8 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         });
 
         // extra validation when swapping on Uniswap
-        require(isRouterSupported[router], "router is not supported");
-        require(platformFeeBps < BPS, "platform fee is too high");
+        require(isRouterSupported[router], "unsupported router");
+        require(platformFeeBps < BPS, "high platform fee");
 
         IERC20Ext src = IERC20Ext(tradePath[0]);
 
@@ -699,7 +707,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             // transfer fee to platform wallet
             if (src == ETH_TOKEN_ADDRESS) {
                 (bool success, ) = input.platformWallet.call{ value: input.srcAmountFee }("");
-                require(success, "transfer eth to platform wallet failed");
+                require(success, "transfer eth fee failed");
             } else {
                 src.safeTransfer(input.platformWallet, input.srcAmountFee);
             }
@@ -724,7 +732,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             src.safeTransferFrom(msg.sender, address(this), srcAmount);
             uint256 balanceAfter = src.balanceOf(address(this));
             actualSrcAmount = balanceAfter.sub(balanceBefore);
-            require(actualSrcAmount > 0);
+            require(actualSrcAmount > 0, "invalid src amount");
 
             safeApproveAllowance(protocol, src);
         }
@@ -753,19 +761,36 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         }
     }
 
-    function safeForwardToken(IERC20Ext token, address from, address payable to, uint256 amount)
+    function safeForwardTokenAndCollectFee(
+        IERC20Ext token,
+        address from,
+        address payable to,
+        uint256 amount,
+        uint256 platformFeeBps,
+        address payable platformWallet
+    )
         internal returns (uint destAmount)
     {
+        require(platformFeeBps < BPS, "high platform fee");
+        require(supportedPlatformWallets[platformWallet], "unsupported platform wallet");
+        uint256 feeAmount = amount * platformFeeBps / BPS;
+        destAmount = amount - feeAmount;
         if (token == ETH_TOKEN_ADDRESS) {
             require(msg.value >= amount);
-            (bool success, ) = to.call { value: amount }("");
+            (bool success, ) = to.call { value: destAmount }("");
             require(success, "transfer eth failed");
-            destAmount = amount;
+            if (feeAmount > 0 && platformWallet != address(this)) {
+                (success, ) = platformWallet.call { value: feeAmount }("");
+                require(success, "transfer eth fee failed");
+            }
         } else {
             uint256 balanceBefore = token.balanceOf(to);
             token.safeTransferFrom(from, to, amount);
             uint256 balanceAfter = token.balanceOf(to);
             destAmount = balanceAfter.sub(balanceBefore);
+            if (feeAmount > 0 && platformWallet != from) {
+                token.safeTransferFrom(from, platformWallet, feeAmount);
+            }
         }
     }
 
@@ -773,15 +798,6 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         if (token.allowance(address(this), spender) == 0) {
             getSetDecimals(token);
             token.safeApprove(spender, MAX_ALLOWANCE);
-        }
-    }
-
-    function transferToken(address payable recipient, IERC20Ext token, uint256 amount) internal {
-        if (token == ETH_TOKEN_ADDRESS) {
-            (bool success, ) = recipient.call { value: amount }("");
-            require(success, "failed to transfer eth");
-        } else {
-            token.safeTransfer(recipient, amount);
         }
     }
 }
