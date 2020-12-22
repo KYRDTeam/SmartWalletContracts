@@ -11,7 +11,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     using SafeERC20 for IERC20Ext;
     using SafeMath for uint256;
 
-    event SupportedPlatformWalletsUpdated(
+    event UpdatedSupportedPlatformWallets(
         address[] indexed wallets,
         bool indexed isSupported
     );
@@ -22,10 +22,15 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     );
     event UpdatedBurnGasHelper(IBurnGasHelper indexed gasHelper);
     event UpdatedLendingImplementation(ISmartWalletLending indexed impl);
-    event ApproveAllowances(
+    event ApprovedAllowances(
         IERC20Ext[] indexed tokens,
         address[] indexed spenders,
         bool isReset
+    );
+    event ClaimedPlatformFees(
+        address[] indexed wallets,
+        IERC20Ext[] indexed tokens,
+        address claimer
     );
 
     constructor(address _admin) public SmartWalletSwapStorage(_admin) {}
@@ -73,6 +78,20 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         emit UpdateUniswapRouters(_uniswapRouters, isAdded);            
     }
 
+    function claimPlatformFees(address[] calldata plaftformWallets, IERC20Ext[] calldata tokens)
+        external nonReentrant
+    {
+        for(uint256 i = 0; i < plaftformWallets.length; i++) {
+            for(uint256 j = 0; j < tokens.length; j++) {
+                uint256 fee = platformWalletFees[plaftformWallets[i]][tokens[j]];
+                if (fee > 1) {
+                    transferToken(payable(plaftformWallets[i]), tokens[j], fee - 1);
+                }
+            }
+        }
+        emit ClaimedPlatformFees(plaftformWallets, tokens, msg.sender);
+    }
+
     /// @dev to prevent other integrations to call trade from this contract
     function updateSupportedPlatformWallets(
         address[] calldata wallets,
@@ -83,7 +102,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         for(uint256 i = 0; i < wallets.length; i++) {
             supportedPlatformWallets[wallets[i]] = isSupported;
         }
-        emit SupportedPlatformWalletsUpdated(wallets, isSupported);
+        emit UpdatedSupportedPlatformWallets(wallets, isSupported);
     }
 
     function approveAllowances(
@@ -101,7 +120,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             getSetDecimals(tokens[i]);
         }
 
-        emit ApproveAllowances(tokens, spenders, isReset);
+        emit ApprovedAllowances(tokens, spenders, isReset);
     }
 
     /// ========== SWAP ========== ///
@@ -167,21 +186,26 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         address payable recipient,
         uint256 platformFeeBps,
         address payable platformWallet,
+        bool feeInSrc,
         bool useGasToken
     ) external override nonReentrant payable returns (uint256 destAmount) {
-        uint256 gasBefore = useGasToken ? gasleft() : 0;
-        destAmount = swapUniswapInternal(
-            router,
-            srcAmount,
-            minDestAmount,
-            tradePath,
-            recipient,
-            platformFeeBps,
-            platformWallet
-        );
-        uint256 numGasBurns = 0;
-        if (useGasToken) {
-            numGasBurns = burnGasTokensAfter(gasBefore);
+        uint256 numGasBurns;
+        {
+            // prevent stack too deep
+            uint256 gasBefore = useGasToken ? gasleft() : 0;
+            destAmount = swapUniswapInternal(
+                router,
+                srcAmount,
+                minDestAmount,
+                tradePath,
+                recipient,
+                platformFeeBps,
+                platformWallet,
+                feeInSrc
+            );
+            if (useGasToken) {
+                numGasBurns = burnGasTokensAfter(gasBefore);
+            }
         }
 
         emit UniswapTrade(
@@ -193,6 +217,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             recipient,
             platformFeeBps,
             platformWallet,
+            feeInSrc,
             useGasToken,
             numGasBurns
         );
@@ -305,7 +330,8 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                     tradePath,
                     payable(address(lendingImpl)),
                     platformFeeBps,
-                    platformWallet
+                    platformWallet,
+                    false
                 );
             }
 
@@ -488,7 +514,8 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                     tradePath,
                     payable(address(lendingImpl)),
                     feeAndRateMode % BPS,
-                    platformWallet
+                    platformWallet,
+                    false
                 );
             }
             lendingImpl.repayBorrowTo(
@@ -626,11 +653,11 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         address[] memory tradePath,
         address payable recipient,
         uint256 platformFeeBps,
-        address payable platformWallet
+        address payable platformWallet,
+        bool feeInSrc
     ) internal returns (uint256 destAmount) {
         TradeInput memory input = TradeInput({
             srcAmount: srcAmount,
-            srcAmountFee: 0,
             minData: minDestAmount,
             recipient: recipient,
             platformFeeBps: platformFeeBps,
@@ -650,70 +677,79 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             srcAmount,
             platformWallet
         );
-        input.srcAmountFee = input.srcAmount.mul(platformFeeBps).div(BPS);
 
-        destAmount = doUniswapTrade(
-            router,
-            src,
-            tradePath,
-            input
-        );
+        destAmount = doUniswapTrade(router, src, tradePath, input, feeInSrc);
     }
 
     function doUniswapTrade(
         IUniswapV2Router02 router,
         IERC20Ext src,
         address[] memory tradePath,
-        TradeInput memory input
+        TradeInput memory input,
+        bool feeInSrc
     ) internal virtual returns (uint256 destAmount) {
-        // convert eth -> weth address
-        address[] memory path = tradePath;
-        for(uint256 i = 0; i < tradePath.length; i++) {
-            if (tradePath[i] == address(ETH_TOKEN_ADDRESS)) {
-                path[i] = router.WETH();
+        uint256 tradeLen = tradePath.length;
+        IERC20Ext actualDest = IERC20Ext(tradePath[tradeLen - 1]);
+        {
+            // convert eth -> weth address to trade on Uniswap
+            if (tradePath[0] == address(ETH_TOKEN_ADDRESS)) {
+                tradePath[0] = router.WETH();
+            }
+            if (tradePath[tradeLen - 1] == address(ETH_TOKEN_ADDRESS)) {
+                tradePath[tradeLen - 1] = router.WETH();
             }
         }
 
+        uint256 srcAmountFee;
+        uint256 srcAmountAfterFee;
+        uint256 destBalanceBefore;
+        address recipient;
+
+        if (feeInSrc) {
+            srcAmountFee = input.srcAmount.mul(input.platformFeeBps).div(BPS);
+            srcAmountAfterFee = input.srcAmount.sub(srcAmountFee);
+            recipient = input.recipient;
+        } else {
+            srcAmountAfterFee = input.srcAmount;
+            destBalanceBefore = getBalance(actualDest, address(this));
+            recipient = address(this);
+        }
+
         uint256[] memory amounts;
-        uint256 srcAmountAfterFee = input.srcAmount.sub(input.srcAmountFee);
         if (src == ETH_TOKEN_ADDRESS) {
             // swap eth -> token
             amounts = router.swapExactETHForTokens{ value: srcAmountAfterFee }(
-                input.minData, path, input.recipient, MAX_AMOUNT
+                input.minData, tradePath, recipient, MAX_AMOUNT
             );
         } else {
-            if (IERC20Ext(tradePath[tradePath.length - 1]) == ETH_TOKEN_ADDRESS) {
+            if (actualDest == ETH_TOKEN_ADDRESS) {
                 // swap token -> eth
                 amounts = router.swapExactTokensForETH(
-                    srcAmountAfterFee,
-                    input.minData,
-                    path,
-                    input.recipient,
-                    MAX_AMOUNT
+                    srcAmountAfterFee, input.minData, tradePath, recipient, MAX_AMOUNT
                 );
             } else {
                 // swap token -> token
                 amounts = router.swapExactTokensForTokens(
-                    srcAmountAfterFee,
-                    input.minData,
-                    path,
-                    input.recipient,
-                    MAX_AMOUNT
+                    srcAmountAfterFee, input.minData, tradePath, recipient, MAX_AMOUNT
                 );
             }
         }
 
-        if (input.platformWallet != address(this) && input.srcAmountFee > 0) {
-            // transfer fee to platform wallet
-            if (src == ETH_TOKEN_ADDRESS) {
-                (bool success, ) = input.platformWallet.call{ value: input.srcAmountFee }("");
-                require(success, "transfer eth fee failed");
-            } else {
-                src.safeTransfer(input.platformWallet, input.srcAmountFee);
-            }
+        if (!feeInSrc) {
+            // fee in dest token, calculated received dest amount
+            uint256 destBalanceAfter = getBalance(actualDest, address(this));
+            destAmount = destBalanceAfter.sub(destBalanceBefore);
+            uint256 destAmountFee = destAmount.mul(input.platformFeeBps).div(BPS);
+            // charge fee in dest token
+            addFeeToPlatform(input.platformWallet, actualDest, destAmountFee);
+            // transfer back dest token to recipient
+            destAmount = destAmount.sub(destAmountFee);
+            transferToken(input.recipient, actualDest, destAmount);
+        } else {
+            // fee in src amount
+            destAmount = amounts[amounts.length - 1];
+            addFeeToPlatform(input.platformWallet, src, srcAmountFee);
         }
-
-        destAmount = amounts[path.length - 1];
     }
 
     function validateAndPrepareSourceAmount(
@@ -779,18 +815,30 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             require(msg.value >= amount);
             (bool success, ) = to.call { value: destAmount }("");
             require(success, "transfer eth failed");
-            if (feeAmount > 0 && platformWallet != address(this)) {
-                (success, ) = platformWallet.call { value: feeAmount }("");
-                require(success, "transfer eth fee failed");
-            }
         } else {
             uint256 balanceBefore = token.balanceOf(to);
             token.safeTransferFrom(from, to, amount);
             uint256 balanceAfter = token.balanceOf(to);
             destAmount = balanceAfter.sub(balanceBefore);
-            if (feeAmount > 0 && platformWallet != from) {
-                token.safeTransferFrom(from, platformWallet, feeAmount);
-            }
+        }
+        addFeeToPlatform(platformWallet, token, feeAmount);
+    }
+
+    function addFeeToPlatform(address wallet, IERC20Ext token, uint256 amount) internal {
+        transferToken(payable(wallet), token, amount);
+        // if (amount > 0) {
+        //     platformWalletFees[wallet][token] =
+        //         platformWalletFees[wallet][token].add(amount);
+        // }
+    }
+
+    function transferToken(address payable recipient, IERC20Ext token, uint256 amount) internal {
+        if (amount == 0) return;
+        if (token == ETH_TOKEN_ADDRESS) {
+            (bool success, ) = recipient.call { value: amount }("");
+            require(success, "failed to transfer eth");
+        } else {
+            token.safeTransfer(recipient, amount);
         }
     }
 

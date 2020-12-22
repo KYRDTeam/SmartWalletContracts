@@ -29,6 +29,7 @@ interface ISmartWalletSwapImplementation {
         address recipient,
         uint256 platformFeeBps,
         address platformWallet,
+        bool feeInSrc,
         bool useGasToken,
         uint256 numGasBurns
     );
@@ -140,6 +141,7 @@ interface ISmartWalletSwapImplementation {
         address payable recipient,
         uint256 platformFeeBps,
         address payable platformWallet,
+        bool feeInSrc,
         bool useGasToken
     ) external payable returns (uint256 destAmount);
 

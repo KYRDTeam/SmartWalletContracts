@@ -4,6 +4,7 @@ import "../burnHelper/IBurnGasHelper.sol";
 import "../interfaces/IKyberProxy.sol";
 import "../interfaces/IGasToken.sol";
 import "../lending/ISmartWalletLending.sol";
+import "@kyber.network/utils-sc/contracts/IERC20Ext.sol";
 import "@kyber.network/utils-sc/contracts/Utils.sol";
 import "@kyber.network/utils-sc/contracts/Withdrawable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -14,6 +15,7 @@ contract SmartWalletSwapStorage is Utils, Withdrawable, ReentrancyGuard {
 
     uint256 constant internal MAX_AMOUNT = uint256(-1);
 
+    mapping (address => mapping(IERC20Ext => uint256)) public platformWalletFees;
     IKyberProxy public kyberProxy;
     // check if a router (Uniswap or its clones) is supported
     mapping(IUniswapV2Router02 => bool) public isRouterSupported;
@@ -23,7 +25,6 @@ contract SmartWalletSwapStorage is Utils, Withdrawable, ReentrancyGuard {
 
     struct TradeInput {
         uint256 srcAmount;
-        uint256 srcAmountFee;
         uint256 minData; // min rate if Kyber, min return if Uni-pools
         address payable recipient;
         uint256 platformFeeBps;
