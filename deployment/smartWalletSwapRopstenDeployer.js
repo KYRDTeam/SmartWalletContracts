@@ -11,13 +11,13 @@ const IERC20Ext = artifacts.require('@kyber.network/utils-sc/contracts/IERC20Ext
 const {ethAddress, zeroAddress, emptyHint} = require('../test/helper');
 
 let impl;
-let implAddr = "0xe43d22C52A67142d642F3c37B1293878F8F84C3b"; // = '0x57353b0e906e6857848d0b983a60d90B1cd71f5f';
+let implAddr = '0x7617E806f18aE27D617e75baDa80a73238Cf1cC7';
 let proxy;
-let proxyAddr = "0x17b884A5a68cd9Fa4525BEaA4a0013e9C6D83Ae0";// = '0x7005A686499Defa39d84f3AF2fF258508311f0A7';
+let proxyAddr = '0x4A0C59CcCae7B4F0732a4A1b9A7BDA49cc1d88F9';
 let burnGasHelper;
 let burnHelperAddr = '0x5758BD3DC2552e9072d5Ff6c0312816f541A0213';
 let lendingImpl;
-let lendingAddr = "0xdCEE5c09A857e4Ee7a0B735c0997fAC90ACe586b";// = '0x01F8A6A8788Af4c32a363F6d85A4CAF19491eC90';
+let lendingAddr = '0xdEbF71D29524447D7A29CDf29Ba09fc6acb017a6';
 
 
 let deployer;
@@ -25,13 +25,14 @@ let deployer;
 const supportedTokens = [
     '0xbca556c912754bc8e7d4aad20ad69a1b1444f42d', // weth
     '0x7b2810576aa1cce68f2b118cef1f36467c648f92', // knc
-    '0xad6d458402f60fd3bd25163575031acdce07538d', // dai
-    '0xb4f7332ed719eb4839f091eddb2a3ba309739521', // link
-    '0x3dff0dce5fc4b367ec91d31de3837cf3840c8284', // wbtc
+    // '0xad6d458402f60fd3bd25163575031acdce07538d', // dai
+    // '0xb4f7332ed719eb4839f091eddb2a3ba309739521', // link
+    // '0x3dff0dce5fc4b367ec91d31de3837cf3840c8284', // wbtc
 ]
 
 const gst2 = '0x0000000000b3F879cb30FE243b4Dfee438691c04';
 const uniswapRouter = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
+const uniToken = '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984';
 const kyberProxy = '0xd719c34261e099Fdb33030ac8909d5788D3039C4';
 const aEth = '0x2433A1b6FcF156956599280C3Eb1863247CFE675';
 const cEth = '0xbe839b6d93e3ea47effcca1f27841c917a8794f3';
@@ -94,33 +95,33 @@ async function main() {
     console.log(`Interacting proxy at ${proxy.address}`);
   }
 
-  // await proxy.updateNewImplementation(impl.address);
-  // console.log(`Updated implementation: ${impl.address}`);
+  await proxy.updateNewImplementation(impl.address);
+  console.log(`Updated implementation: ${impl.address}`);
 
   let swapProxy = await SmartWalletSwapImplementation.at(proxy.address);
-  // await swapProxy.updateLendingImplementation(lendingAddr);
-  // console.log(`Updated lending impl to proxy ${lendingAddr}`);
-  // await swapProxy.updateBurnGasHelper(burnGasHelper.address);
-  // console.log(`Updated burn gas helper for proxy`);
-  // await swapProxy.updateKyberProxy(kyberProxy, { gasPrice: gasPrice });
-  // console.log(`Updated kyber proxy`);
-  // await swapProxy.updateUniswapRouters([uniswapRouter], true, { gasPrice: gasPrice });
-  // console.log(`Added uniswap routers`);
-  // await swapProxy.updateSupportedPlatformWallets(supportedWallets, true, { gasPrice: gasPrice });
-  // console.log(`Added supported platform wallets`);
+  await swapProxy.updateLendingImplementation(lendingAddr);
+  console.log(`Updated lending impl to proxy ${lendingAddr}`);
+  await swapProxy.updateBurnGasHelper(burnGasHelper.address);
+  console.log(`Updated burn gas helper for proxy`);
+  await swapProxy.updateKyberProxy(kyberProxy, { gasPrice: gasPrice });
+  console.log(`Updated kyber proxy`);
+  await swapProxy.updateUniswapRouters([uniswapRouter], true, { gasPrice: gasPrice });
+  console.log(`Added uniswap routers`);
+  await swapProxy.updateSupportedPlatformWallets(supportedWallets, true, { gasPrice: gasPrice });
+  console.log(`Added supported platform wallets`);
 
-  // await lendingImpl.updateAaveLendingPoolData(
-  //   zeroAddress,
-  //   '0x9E5C7835E4b13368fd628196C4f1c6cEc89673Fa',
-  //   0,
-  //   '0x9E5C7835E4b13368fd628196C4f1c6cEc89673Fa', // weth
-  //   [ethAddress]
-  // );
-  // console.log(`Updated aave lending pool data to lending impl`);
-  // await lendingImpl.updateCompoundData(comptroller, cEth, []);
-  // console.log(`Updated compound data to lending impl`);
-  // await lendingImpl.updateSwapImplementation(proxy.address);
-  // console.log(`Updated proxy to lending impl`)
+  await lendingImpl.updateAaveLendingPoolData(
+    zeroAddress,
+    '0x9E5C7835E4b13368fd628196C4f1c6cEc89673Fa',
+    0,
+    '0x9E5C7835E4b13368fd628196C4f1c6cEc89673Fa', // weth
+    [ethAddress]
+  );
+  console.log(`Updated aave lending pool data to lending impl`);
+  await lendingImpl.updateCompoundData(comptroller, cEth, []);
+  console.log(`Updated compound data to lending impl`);
+  await lendingImpl.updateSwapImplementation(proxy.address);
+  console.log(`Updated proxy to lending impl`)
 
   // for(let i = 0; i < supportedTokens.length; i++) {
   //   let token = await IERC20Ext.at(supportedTokens[i]);
@@ -129,10 +130,42 @@ async function main() {
   // }
 
   let gasToken = await GasToken.at(gst2);
-  // await gasToken.mint(160);
-  // console.log(`Minted gas`)
-  // await gasToken.approve(swapProxy.address, new BN(2).pow(new BN(255)));
-  // console.log(`Approved gas token`)
+  await gasToken.mint(160);
+  console.log(`Minted gas`)
+  await gasToken.approve(swapProxy.address, new BN(2).pow(new BN(255)));
+  console.log(`Approved gas token`)
+
+  let tx = await swapProxy.swapUniswap(
+    uniswapRouter,
+    new BN(10).pow(new BN(16)),
+    new BN(0),
+    [ethAddress, uniToken],
+    deployer,
+    8,
+    supportedWallets[0],
+    false,
+    true,
+    { value: new BN(10).pow(new BN(16)), gas: 2000000 }
+  );
+  console.log(`Swap eth -> uni on Uniswap, gas used: ${tx.receipt.gasUsed}`);
+
+  tx = await swapProxy.swapUniswap(
+    uniswapRouter,
+    new BN(10).pow(new BN(16)),
+    new BN(0),
+    [ethAddress, uniToken],
+    deployer,
+    8,
+    supportedWallets[0],
+    true,
+    true,
+    { value: new BN(10).pow(new BN(16)), gas: 2000000 }
+  );
+  console.log(`Swap eth -> uni on Uniswap, gas used: ${tx.receipt.gasUsed}`);
+
+  await swapProxy.claimPlatformFees([supportedWallets[0]], [ethAddress, uniToken]);
+  console.log(`Claimed platform fee for eth and uni`);
+
   let kncAmount = new BN(10).pow(new BN(18));
   let kncToken = await IERC20Ext.at('0x7b2810576aa1cce68f2b118cef1f36467c648f92');
   // await kncToken.approve(swapProxy.address, new BN(2).pow(new BN(255)), { gasPrice: gasPrice });
