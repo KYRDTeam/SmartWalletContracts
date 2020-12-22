@@ -206,4 +206,9 @@ interface ISmartWalletSwapImplementation {
         bool suppliers,
         bool useGasToken
     ) external;
+
+    function claimPlatformFees(
+        address[] calldata plaftformWallets,
+        IERC20Ext[] calldata tokens
+    ) external;
 }

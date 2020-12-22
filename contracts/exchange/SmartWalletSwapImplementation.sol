@@ -79,7 +79,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     }
 
     function claimPlatformFees(address[] calldata plaftformWallets, IERC20Ext[] calldata tokens)
-        external nonReentrant
+        external override nonReentrant
     {
         for(uint256 i = 0; i < plaftformWallets.length; i++) {
             for(uint256 j = 0; j < tokens.length; j++) {
@@ -825,11 +825,10 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     }
 
     function addFeeToPlatform(address wallet, IERC20Ext token, uint256 amount) internal {
-        transferToken(payable(wallet), token, amount);
-        // if (amount > 0) {
-        //     platformWalletFees[wallet][token] =
-        //         platformWalletFees[wallet][token].add(amount);
-        // }
+        if (amount > 0) {
+            platformWalletFees[wallet][token] =
+                platformWalletFees[wallet][token].add(amount);
+        }
     }
 
     function transferToken(address payable recipient, IERC20Ext token, uint256 amount) internal {
