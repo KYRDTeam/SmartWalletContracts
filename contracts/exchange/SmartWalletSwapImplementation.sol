@@ -1,6 +1,6 @@
 pragma solidity 0.6.6;
 
-import "./ISmartWalletSwapImplementation.sol";
+import "../interfaces/ISmartWalletSwapImplementation.sol";
 import "./SmartWalletSwapStorage.sol";
 import "@kyber.network/utils-sc/contracts/IERC20Ext.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
@@ -78,6 +78,19 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         emit UpdateUniswapRouters(_uniswapRouters, isAdded);            
     }
 
+    /// @dev to prevent other integrations to call trade from this contract
+    function updateSupportedPlatformWallets(
+        address[] calldata wallets,
+        bool isSupported
+    )
+        external onlyAdmin
+    {
+        for(uint256 i = 0; i < wallets.length; i++) {
+            supportedPlatformWallets[wallets[i]] = isSupported;
+        }
+        emit UpdatedSupportedPlatformWallets(wallets, isSupported);
+    }
+
     function claimPlatformFees(address[] calldata plaftformWallets, IERC20Ext[] calldata tokens)
         external override nonReentrant
     {
@@ -90,19 +103,6 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             }
         }
         emit ClaimedPlatformFees(plaftformWallets, tokens, msg.sender);
-    }
-
-    /// @dev to prevent other integrations to call trade from this contract
-    function updateSupportedPlatformWallets(
-        address[] calldata wallets,
-        bool isSupported
-    )
-        external onlyAdmin
-    {
-        for(uint256 i = 0; i < wallets.length; i++) {
-            supportedPlatformWallets[wallets[i]] = isSupported;
-        }
-        emit UpdatedSupportedPlatformWallets(wallets, isSupported);
     }
 
     function approveAllowances(
