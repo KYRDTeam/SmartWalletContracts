@@ -7,8 +7,17 @@ contract SmartWalletSwapProxy is SmartWalletSwapStorage {
 
     event ImplementationUpdated(address indexed implementation);
 
-    constructor(address _admin, address _implementation) public SmartWalletSwapStorage(_admin) {
+    constructor(
+        address _admin,
+        address _implementation,
+        IKyberProxy _proxy,
+        IUniswapV2Router02[] memory _routers
+    ) public SmartWalletSwapStorage(_admin) {
         implementation = _implementation;
+        kyberProxy = _proxy;
+        for(uint256 i = 0; i < _routers.length; i++) {
+            isRouterSupported[_routers[i]] = true;
+        }
     }
 
     function updateNewImplementation(address _implementation) external onlyAdmin {

@@ -2,6 +2,7 @@ const IERC20Ext = artifacts.require('@kyber.network/utils-sc/contracts/IERC20Ext
 const SmartWalletSwapImplementation = artifacts.require('SmartWalletSwapImplementation.sol');
 const SmartWalletSwapImplementation2 = artifacts.require('SmartWalletSwapImplementation2.sol');
 const SmartWalletSwapProxy = artifacts.require('SmartWalletSwapProxy.sol');
+const SmartWalletLending = artifacts.require('SmartWalletLending.sol');
 const BurnGasHelper = artifacts.require('BurnGasHelper.sol');
 const GasToken = artifacts.require('IGasToken.sol');
 const IKyberProxy = artifacts.require('IKyberProxy.sol');
@@ -22,6 +23,7 @@ const gasTokenAddress = '0x0000000000b3F879cb30FE243b4Dfee438691c04';
 const {ethAddress, ethDecimals, calcDstQty, assertMost, emptyHint} = require('./helper');
 const Helper = require('./helper');
 
+let lending;
 let swapImplementation;
 let swapProxy;
 let burnGasHelper;
@@ -36,8 +38,15 @@ contract('SmartWalletSwapImplementation', accounts => {
       burnGasHelper = await BurnGasHelper.new(
         admin, gasTokenAddress, 14154, 6870, 24000
       );
+
+      lending = await SmartWalletLending.new(admin);
       swapImplementation = await SmartWalletSwapImplementation.new(admin);
-      swapProxy = await SmartWalletSwapProxy.new(admin, swapImplementation.address);
+      swapProxy = await SmartWalletSwapProxy.new(
+        admin,
+        swapImplementation.address,
+        kyberProxy,
+        [uniswapRouter, sushiswapRouter]
+      );
       swapProxy = await SmartWalletSwapImplementation.at(swapProxy.address);
 
       // approve allowance
@@ -45,8 +54,9 @@ contract('SmartWalletSwapImplementation', accounts => {
         [weth, usdtAddress, usdcAddress, daiAddress], [kyberProxy, uniswapRouter, sushiswapRouter], false, { from: admin }
       );
       // update storage data
-      await swapProxy.updateKyberProxy(kyberProxy, { from: admin });
-      await swapProxy.updateUniswapRouters([uniswapRouter, sushiswapRouter], true, { from: admin });
+      // await swapProxy.updateKyberProxy(kyberProxy, { from: admin });
+      // await swapProxy.updateUniswapRouters([uniswapRouter, sushiswapRouter], true, { from: admin });
+      await swapProxy.updateLendingImplementation(lending.address, { from: admin });
       await swapProxy.updateSupportedPlatformWallets([user], true, { from: admin });
       await swapProxy.updateBurnGasHelper(burnGasHelper.address, { from: admin });
 
@@ -61,30 +71,32 @@ contract('SmartWalletSwapImplementation', accounts => {
         let token = await IERC20Ext.at(tokenAddresses[i]);
         await token.approve(swapProxy.address, new BN(2).pow(new BN(255)), { from: user });
       }
+
+      swapProxy = await SmartWalletSwapImplementation.at(swapProxy.address);
     });
 
-    it('trade on Kyber directly', async() => {
-      let tokenNames = ["USDT", "USDC", "DAI"];
-      let tokenAddresses = [usdtAddress, usdcAddress, daiAddress];
-      // let tokenDecimals = [6, 6, 18];
-      let ethAmount = new BN(10).pow(new BN(ethDecimals)); // one eth
-      for(let i = 0; i < tokenAddresses.length; i++) {
-        let proxy = await IKyberProxy.at(kyberProxy);
-        let tx = await proxy.tradeWithHintAndFee(
-          ethAddress, ethAmount, tokenAddresses[i], user, new BN(2).pow(new BN(255)), new BN(0), user, 8, emptyHint, { value: ethAmount, from: user }
-        );
-        console.log(`[Direct-Kyber] Transaction gas used ETH -> ${tokenNames[i]} without gas token: ${tx.receipt.gasUsed}`);
+    // it('trade on Kyber directly', async() => {
+    //   let tokenNames = ["USDT", "USDC", "DAI"];
+    //   let tokenAddresses = [usdtAddress, usdcAddress, daiAddress];
+    //   // let tokenDecimals = [6, 6, 18];
+    //   let ethAmount = new BN(10).pow(new BN(ethDecimals)); // one eth
+    //   for(let i = 0; i < tokenAddresses.length; i++) {
+    //     let proxy = await IKyberProxy.at(kyberProxy);
+    //     let tx = await proxy.tradeWithHintAndFee(
+    //       ethAddress, ethAmount, tokenAddresses[i], user, new BN(2).pow(new BN(255)), new BN(0), user, 8, emptyHint, { value: ethAmount, from: user }
+    //     );
+    //     console.log(`[Direct-Kyber] Transaction gas used ETH -> ${tokenNames[i]} without gas token: ${tx.receipt.gasUsed}`);
 
-        let token = await IERC20Ext.at(tokenAddresses[i]);
-        let tokenAmount = await token.balanceOf(user);
-        await token.approve(kyberProxy, tokenAmount, { from: user });
+    //     let token = await IERC20Ext.at(tokenAddresses[i]);
+    //     let tokenAmount = await token.balanceOf(user);
+    //     await token.approve(kyberProxy, tokenAmount, { from: user });
 
-        tx = await proxy.tradeWithHintAndFee(
-          tokenAddresses[i], tokenAmount, ethAddress, user, new BN(2).pow(new BN(255)), new BN(0), user, 8, emptyHint, { from: user }
-        );
-        console.log(`[Direct-Kyber] Transaction gas used ${tokenNames[i]} -> ETH without gas token: ${tx.receipt.gasUsed}`);
-      }
-    });
+    //     tx = await proxy.tradeWithHintAndFee(
+    //       tokenAddresses[i], tokenAmount, ethAddress, user, new BN(2).pow(new BN(255)), new BN(0), user, 8, emptyHint, { from: user }
+    //     );
+    //     console.log(`[Direct-Kyber] Transaction gas used ${tokenNames[i]} -> ETH without gas token: ${tx.receipt.gasUsed}`);
+    //   }
+    // });
 
     // it('trade t2e on Uniswap', async () => {
     //   let tokenNames = ["USDT", "USDC", "DAI"];
@@ -129,7 +141,7 @@ contract('SmartWalletSwapImplementation', accounts => {
       let ethAmount = new BN(10).pow(new BN(ethDecimals)); // one eth
       for(let i = 0; i < tokenAddresses.length; i++) {
         let token = tokenAddresses[i];
-        let data = await swapImplementation.getExpectedReturnKyber(ethAddress, token, ethAmount, 8, emptyHint);
+        let data = await swapProxy.getExpectedReturnKyber(ethAddress, token, ethAmount, 8, emptyHint);
         // console.log(`Expected dest amount: ${data.destAmount.toString(10)}`);
         // console.log(`Expected rate: ${data.expectedRate.toString(10)}`);
         let minRate = data.expectedRate.mul(new BN(97)).div(new BN(100));
@@ -156,7 +168,7 @@ contract('SmartWalletSwapImplementation', accounts => {
         for(let j = 0; j < tokenAddresses.length; j++) {
           let token = tokenAddresses[j];
           let tradePath = [weth, token]; // get rate needs to use weth
-          let data = await swapImplementation.getExpectedReturnUniswap(routers[i], ethAmount, tradePath, 8);
+          let data = await swapProxy.getExpectedReturnUniswap(routers[i], ethAmount, tradePath, 8);
           // console.log(`Expected dest amount: ${data.destAmount.toString(10)}`);
           // console.log(`Expected rate: ${data.expectedRate.toString(10)}`);
           let minDestAmount = data.destAmount.mul(new BN(97)).div(new BN(100));
@@ -164,13 +176,13 @@ contract('SmartWalletSwapImplementation', accounts => {
           // let ethBalanceBefore = await web3.utils.toBN(await web3.eth.getBalance(swapProxy.address));
           tradePath[0] = ethAddress; // trade needs to use eth address
           let tx = await swapProxy.swapUniswap(
-            routers[i], ethAmount, minDestAmount, tradePath, user, 8, user, false, { from: user, value: ethAmount }
+            routers[i], ethAmount, minDestAmount, tradePath, user, 8, user, true, false, { from: user, value: ethAmount }
           );
           // let ethBalanceAfter = await web3.utils.toBN(await web3.eth.getBalance(swapProxy.address));
           // console.log(`Balance changes: ${ethBalanceAfter.sub(ethBalanceBefore).toString(10)}`);
           console.log(`[${routerNames[i]}] Transaction gas used ETH -> ${tokenNames[j]} without gas token: ${tx.receipt.gasUsed}`);
           tx = await swapProxy.swapUniswap(
-            routers[i], ethAmount, minDestAmount, tradePath, user, 8, user, true, { from: user, value: ethAmount }
+            routers[i], ethAmount, minDestAmount, tradePath, user, 8, user, true, true, { from: user, value: ethAmount }
           );
           ethBalanceAfter = await web3.utils.toBN(await web3.eth.getBalance(swapProxy.address));
           // console.log(`Balance changes: ${ethBalanceAfter.sub(ethBalanceBefore).toString(10)}`);
@@ -186,7 +198,7 @@ contract('SmartWalletSwapImplementation', accounts => {
       for(let i = 0; i < tokenAddresses.length; i++) {
         let token = await IERC20Ext.at(tokenAddresses[i]);
         let tokenAmount = (await token.balanceOf(user)).div(new BN(5));
-        let data = await swapImplementation.getExpectedReturnKyber(tokenAddresses[i], ethAddress, tokenAmount, 8, emptyHint);
+        let data = await swapProxy.getExpectedReturnKyber(tokenAddresses[i], ethAddress, tokenAmount, 8, emptyHint);
         // console.log(`Expected dest amount: ${data.destAmount.toString(10)}`);
         // console.log(`Expected rate: ${data.expectedRate.toString(10)}`);
         let minRate = data.expectedRate.mul(new BN(97)).div(new BN(100));
@@ -213,7 +225,7 @@ contract('SmartWalletSwapImplementation', accounts => {
           let token = await IERC20Ext.at(tokenAddresses[j]);
           let tokenAmount = (await token.balanceOf(user)).div(new BN(5));
           let tradePath = [tokenAddresses[j], weth]; // get rate needs to use weth
-          let data = await swapImplementation.getExpectedReturnUniswap(routers[i], tokenAmount, tradePath, 8);
+          let data = await swapProxy.getExpectedReturnUniswap(routers[i], tokenAmount, tradePath, 8);
           // console.log(`Expected dest amount: ${data.destAmount.toString(10)}`);
           // console.log(`Expected rate: ${data.expectedRate.toString(10)}`);
           let minDestAmount = data.destAmount.mul(new BN(97)).div(new BN(100));
@@ -221,13 +233,13 @@ contract('SmartWalletSwapImplementation', accounts => {
           let tokenBalanceBefore = await token.balanceOf(swapProxy.address);
           tradePath[1] = ethAddress; // trade needs to use eth address
           let tx = await swapProxy.swapUniswap(
-            routers[i], tokenAmount, minDestAmount, tradePath, user, 8, user, false, { from: user }
+            routers[i], tokenAmount, minDestAmount, tradePath, user, 8, user, true, false, { from: user }
           );
           let tokenBalanceAfter = await token.balanceOf(swapProxy.address);
           // console.log(`Balance changes: ${tokenBalanceAfter.sub(tokenBalanceBefore).toString(10)}`);
           console.log(`[${routerNames[i]}] Transaction gas used ${tokenNames[j]} -> ETH without gas token: ${tx.receipt.gasUsed}`);
           tx = await swapProxy.swapUniswap(
-            routers[i], tokenAmount, minDestAmount, tradePath, user, 8, user, true, { from: user }
+            routers[i], tokenAmount, minDestAmount, tradePath, user, 8, user, true, true, { from: user }
           );
           tokenBalanceAfter = await token.balanceOf(swapProxy.address);
           // console.log(`Balance changes: ${tokenBalanceAfter.sub(tokenBalanceBefore).toString(10)}`);
@@ -236,131 +248,131 @@ contract('SmartWalletSwapImplementation', accounts => {
       }
     });
 
-    describe(`Upgrade implementation and test`, async() => {
-      before(`Upgrade implementation`, async() => {
-        swapImplementation = await SmartWalletSwapImplementation2.new(
-          admin, kyberProxy, [], burnGasHelper.address
-        );
-        // update implementation
-        swapProxy = await SmartWalletSwapProxy.at(swapProxy.address);
-        await swapProxy.updateNewImplementation(swapImplementation.address, { from : admin });
+    // describe(`Upgrade implementation and test`, async() => {
+    //   before(`Upgrade implementation`, async() => {
+    //     swapImplementation = await SmartWalletSwapImplementation2.new(
+    //       admin, kyberProxy, [], burnGasHelper.address
+    //     );
+    //     // update implementation
+    //     swapProxy = await SmartWalletSwapProxy.at(swapProxy.address);
+    //     await swapProxy.updateNewImplementation(swapImplementation.address, { from : admin });
 
-        swapProxy = await SmartWalletSwapImplementation2.at(swapProxy.address);
-      });
+    //     swapProxy = await SmartWalletSwapImplementation2.at(swapProxy.address);
+    //   });
 
-      it('trade e2t on kyber', async () => {
-        let tokenNames = ["USDT", "USDC", "DAI"];
-        let tokenAddresses = [usdtAddress, usdcAddress, daiAddress];
-        // let tokenDecimals = [6, 6, 18];
-        let ethAmount = new BN(10).pow(new BN(ethDecimals)); // one eth
-        for(let i = 0; i < tokenAddresses.length; i++) {
-          let token = tokenAddresses[i];
-          let data = await swapImplementation.getExpectedReturnKyber(ethAddress, token, ethAmount, 8, emptyHint);
-          // console.log(`Expected dest amount: ${data.destAmount.toString(10)}`);
-          // console.log(`Expected rate: ${data.expectedRate.toString(10)}`);
-          let minRate = data.expectedRate.mul(new BN(97)).div(new BN(100));
+    //   it('trade e2t on kyber', async () => {
+    //     let tokenNames = ["USDT", "USDC", "DAI"];
+    //     let tokenAddresses = [usdtAddress, usdcAddress, daiAddress];
+    //     // let tokenDecimals = [6, 6, 18];
+    //     let ethAmount = new BN(10).pow(new BN(ethDecimals)); // one eth
+    //     for(let i = 0; i < tokenAddresses.length; i++) {
+    //       let token = tokenAddresses[i];
+    //       let data = await swapImplementation.getExpectedReturnKyber(ethAddress, token, ethAmount, 8, emptyHint);
+    //       // console.log(`Expected dest amount: ${data.destAmount.toString(10)}`);
+    //       // console.log(`Expected rate: ${data.expectedRate.toString(10)}`);
+    //       let minRate = data.expectedRate.mul(new BN(97)).div(new BN(100));
   
-          let tx = await swapProxy.swapKyber(
-            ethAddress, token, ethAmount, minRate, user, 8, user, emptyHint, false, { from: user, value: ethAmount }
-          );
-          console.log(`[Kyber] Transaction gas used ETH -> ${tokenNames[i]} without gas token: ${tx.receipt.gasUsed}`);
-          tx = await swapProxy.swapKyber(
-            ethAddress, token, ethAmount, minRate, user, 8, user, emptyHint, true, { from: user, value: ethAmount }
-          );
-          console.log(`[Kyber] Transaction gas used ETH -> ${tokenNames[i]} with gas token: ${tx.receipt.gasUsed}`);
-        }
-      });
+    //       let tx = await swapProxy.swapKyber(
+    //         ethAddress, token, ethAmount, minRate, user, 8, user, emptyHint, true, false, { from: user, value: ethAmount }
+    //       );
+    //       console.log(`[Kyber] Transaction gas used ETH -> ${tokenNames[i]} without gas token: ${tx.receipt.gasUsed}`);
+    //       tx = await swapProxy.swapKyber(
+    //         ethAddress, token, ethAmount, minRate, user, 8, user, emptyHint, true, true, { from: user, value: ethAmount }
+    //       );
+    //       console.log(`[Kyber] Transaction gas used ETH -> ${tokenNames[i]} with gas token: ${tx.receipt.gasUsed}`);
+    //     }
+    //   });
 
-      it('trade e2t on Uniswap', async () => {
-        let tokenNames = ["USDT", "USDC", "DAI"];
-        let tokenAddresses = [usdtAddress, usdcAddress, daiAddress];
-        let routers = [uniswapRouter, sushiswapRouter];
-        let routerNames = ["Uniswap", "Sushiswap"];
-        // let tokenDecimals = [6, 6, 18];
-        let ethAmount = new BN(10).pow(new BN(ethDecimals)); // one eth
-        for(let i = 0; i < routers.length; i++) {
-          for(let j = 0; j < tokenAddresses.length; j++) {
-            let token = tokenAddresses[j];
-            let tradePath = [weth, token]; // get rate needs to use weth
-            let data = await swapImplementation.getExpectedReturnUniswap(routers[i], ethAmount, tradePath, 8);
-            // console.log(`Expected dest amount: ${data.destAmount.toString(10)}`);
-            // console.log(`Expected rate: ${data.expectedRate.toString(10)}`);
-            let minDestAmount = data.destAmount.mul(new BN(97)).div(new BN(100));
+    //   it('trade e2t on Uniswap', async () => {
+    //     let tokenNames = ["USDT", "USDC", "DAI"];
+    //     let tokenAddresses = [usdtAddress, usdcAddress, daiAddress];
+    //     let routers = [uniswapRouter, sushiswapRouter];
+    //     let routerNames = ["Uniswap", "Sushiswap"];
+    //     // let tokenDecimals = [6, 6, 18];
+    //     let ethAmount = new BN(10).pow(new BN(ethDecimals)); // one eth
+    //     for(let i = 0; i < routers.length; i++) {
+    //       for(let j = 0; j < tokenAddresses.length; j++) {
+    //         let token = tokenAddresses[j];
+    //         let tradePath = [weth, token]; // get rate needs to use weth
+    //         let data = await swapImplementation.getExpectedReturnUniswap(routers[i], ethAmount, tradePath, 8);
+    //         // console.log(`Expected dest amount: ${data.destAmount.toString(10)}`);
+    //         // console.log(`Expected rate: ${data.expectedRate.toString(10)}`);
+    //         let minDestAmount = data.destAmount.mul(new BN(97)).div(new BN(100));
     
-            // let ethBalanceBefore = await web3.utils.toBN(await web3.eth.getBalance(swapProxy.address));
-            tradePath[0] = ethAddress; // trade needs to use eth address
-            let tx = await swapProxy.swapUniswap(
-              routers[i], ethAmount, minDestAmount, tradePath, user, 8, user, false, { from: user, value: ethAmount }
-            );
-            // let ethBalanceAfter = await web3.utils.toBN(await web3.eth.getBalance(swapProxy.address));
-            // console.log(`Balance changes: ${ethBalanceAfter.sub(ethBalanceBefore).toString(10)}`);
-            console.log(`[${routerNames[i]}] Transaction gas used ETH -> ${tokenNames[j]} without gas token: ${tx.receipt.gasUsed}`);
-            tx = await swapProxy.swapUniswap(
-              routers[i], ethAmount, minDestAmount, tradePath, user, 8, user, true, { from: user, value: ethAmount }
-            );
-            ethBalanceAfter = await web3.utils.toBN(await web3.eth.getBalance(swapProxy.address));
-            // console.log(`Balance changes: ${ethBalanceAfter.sub(ethBalanceBefore).toString(10)}`);
-            console.log(`[${routerNames[i]}] Transaction gas used ETH -> ${tokenNames[j]} with gas token: ${tx.receipt.gasUsed}`);
-          }
-        }
-      });
+    //         // let ethBalanceBefore = await web3.utils.toBN(await web3.eth.getBalance(swapProxy.address));
+    //         tradePath[0] = ethAddress; // trade needs to use eth address
+    //         let tx = await swapProxy.swapUniswap(
+    //           routers[i], ethAmount, minDestAmount, tradePath, user, 8, user, true, false, { from: user, value: ethAmount }
+    //         );
+    //         // let ethBalanceAfter = await web3.utils.toBN(await web3.eth.getBalance(swapProxy.address));
+    //         // console.log(`Balance changes: ${ethBalanceAfter.sub(ethBalanceBefore).toString(10)}`);
+    //         console.log(`[${routerNames[i]}] Transaction gas used ETH -> ${tokenNames[j]} without gas token: ${tx.receipt.gasUsed}`);
+    //         tx = await swapProxy.swapUniswap(
+    //           routers[i], ethAmount, minDestAmount, tradePath, user, 8, user, true, true, { from: user, value: ethAmount }
+    //         );
+    //         ethBalanceAfter = await web3.utils.toBN(await web3.eth.getBalance(swapProxy.address));
+    //         // console.log(`Balance changes: ${ethBalanceAfter.sub(ethBalanceBefore).toString(10)}`);
+    //         console.log(`[${routerNames[i]}] Transaction gas used ETH -> ${tokenNames[j]} with gas token: ${tx.receipt.gasUsed}`);
+    //       }
+    //     }
+    //   });
   
-      it('trade t2e on kyber', async () => {
-        let tokenNames = ["USDT", "USDC", "DAI"];
-        let tokenAddresses = [usdtAddress, usdcAddress, daiAddress];
-        // let tokenDecimals = [6, 6, 18];
-        for(let i = 0; i < tokenAddresses.length; i++) {
-          let token = await IERC20Ext.at(tokenAddresses[i]);
-          let tokenAmount = (await token.balanceOf(user)).div(new BN(5));
-          let data = await swapImplementation.getExpectedReturnKyber(tokenAddresses[i], ethAddress, tokenAmount, 8, emptyHint);
-          // console.log(`Expected dest amount: ${data.destAmount.toString(10)}`);
-          // console.log(`Expected rate: ${data.expectedRate.toString(10)}`);
-          let minRate = data.expectedRate.mul(new BN(97)).div(new BN(100));
+    //   it('trade t2e on kyber', async () => {
+    //     let tokenNames = ["USDT", "USDC", "DAI"];
+    //     let tokenAddresses = [usdtAddress, usdcAddress, daiAddress];
+    //     // let tokenDecimals = [6, 6, 18];
+    //     for(let i = 0; i < tokenAddresses.length; i++) {
+    //       let token = await IERC20Ext.at(tokenAddresses[i]);
+    //       let tokenAmount = (await token.balanceOf(user)).div(new BN(5));
+    //       let data = await swapImplementation.getExpectedReturnKyber(tokenAddresses[i], ethAddress, tokenAmount, 8, emptyHint);
+    //       // console.log(`Expected dest amount: ${data.destAmount.toString(10)}`);
+    //       // console.log(`Expected rate: ${data.expectedRate.toString(10)}`);
+    //       let minRate = data.expectedRate.mul(new BN(97)).div(new BN(100));
   
-          let tx = await swapProxy.swapKyber(
-            tokenAddresses[i], ethAddress, tokenAmount, minRate, user, 8, user, emptyHint, false, { from: user }
-          );
-          console.log(`[Kyber] Transaction gas used ${tokenNames[i]} -> ETH without gas token: ${tx.receipt.gasUsed}`);
-          tx = await swapProxy.swapKyber(
-            tokenAddresses[i], ethAddress, tokenAmount, minRate, user, 8, user, emptyHint, false, { from: user }
-          );
-          console.log(`[Kyber] Transaction gas used ${tokenNames[i]} -> ETH with gas token: ${tx.receipt.gasUsed}`);
-        }
-      });
+    //       let tx = await swapProxy.swapKyber(
+    //         tokenAddresses[i], ethAddress, tokenAmount, minRate, user, 8, user, emptyHint, true, false, { from: user }
+    //       );
+    //       console.log(`[Kyber] Transaction gas used ${tokenNames[i]} -> ETH without gas token: ${tx.receipt.gasUsed}`);
+    //       tx = await swapProxy.swapKyber(
+    //         tokenAddresses[i], ethAddress, tokenAmount, minRate, user, 8, user, emptyHint, true, false, { from: user }
+    //       );
+    //       console.log(`[Kyber] Transaction gas used ${tokenNames[i]} -> ETH with gas token: ${tx.receipt.gasUsed}`);
+    //     }
+    //   });
   
-      it('trade t2e on Uniswap', async () => {
-        let tokenNames = ["USDT", "USDC", "DAI"];
-        let tokenAddresses = [usdtAddress, usdcAddress, daiAddress];
-        let routers = [uniswapRouter, sushiswapRouter];
-        let routerNames = ["Uniswap", "Sushiswap"];
-        // let tokenDecimals = [6, 6, 18];
-        for(let i = 0; i < routers.length; i++) {
-          for(let j = 0; j < tokenAddresses.length; j++) {
-            let token = await IERC20Ext.at(tokenAddresses[j]);
-            let tokenAmount = (await token.balanceOf(user)).div(new BN(5));
-            let tradePath = [tokenAddresses[j], weth]; // get rate needs to use weth
-            let data = await swapImplementation.getExpectedReturnUniswap(routers[i], tokenAmount, tradePath, 8);
-            // console.log(`Expected dest amount: ${data.destAmount.toString(10)}`);
-            // console.log(`Expected rate: ${data.expectedRate.toString(10)}`);
-            let minDestAmount = data.destAmount.mul(new BN(97)).div(new BN(100));
+    //   it('trade t2e on Uniswap', async () => {
+    //     let tokenNames = ["USDT", "USDC", "DAI"];
+    //     let tokenAddresses = [usdtAddress, usdcAddress, daiAddress];
+    //     let routers = [uniswapRouter, sushiswapRouter];
+    //     let routerNames = ["Uniswap", "Sushiswap"];
+    //     // let tokenDecimals = [6, 6, 18];
+    //     for(let i = 0; i < routers.length; i++) {
+    //       for(let j = 0; j < tokenAddresses.length; j++) {
+    //         let token = await IERC20Ext.at(tokenAddresses[j]);
+    //         let tokenAmount = (await token.balanceOf(user)).div(new BN(5));
+    //         let tradePath = [tokenAddresses[j], weth]; // get rate needs to use weth
+    //         let data = await swapImplementation.getExpectedReturnUniswap(routers[i], tokenAmount, tradePath, 8);
+    //         // console.log(`Expected dest amount: ${data.destAmount.toString(10)}`);
+    //         // console.log(`Expected rate: ${data.expectedRate.toString(10)}`);
+    //         let minDestAmount = data.destAmount.mul(new BN(97)).div(new BN(100));
     
-            let tokenBalanceBefore = await token.balanceOf(swapProxy.address);
-            tradePath[1] = ethAddress; // trade needs to use eth address
-            let tx = await swapProxy.swapUniswap(
-              routers[i], tokenAmount, minDestAmount, tradePath, user, 8, user, false, { from: user }
-            );
-            let tokenBalanceAfter = await token.balanceOf(swapProxy.address);
-            // console.log(`Balance changes: ${tokenBalanceAfter.sub(tokenBalanceBefore).toString(10)}`);
-            console.log(`[${routerNames[i]}] Transaction gas used ${tokenNames[j]} -> ETH without gas token: ${tx.receipt.gasUsed}`);
-            tx = await swapProxy.swapUniswap(
-              routers[i], tokenAmount, minDestAmount, tradePath, user, 8, user, true, { from: user }
-            );
-            tokenBalanceAfter = await token.balanceOf(swapProxy.address);
-            // console.log(`Balance changes: ${tokenBalanceAfter.sub(tokenBalanceBefore).toString(10)}`);
-            console.log(`[${routerNames[i]}] Transaction gas used ${tokenNames[j]} -> ETH with gas token: ${tx.receipt.gasUsed}`);
-          }
-        }
-      });
-    });
+    //         let tokenBalanceBefore = await token.balanceOf(swapProxy.address);
+    //         tradePath[1] = ethAddress; // trade needs to use eth address
+    //         let tx = await swapProxy.swapUniswap(
+    //           routers[i], tokenAmount, minDestAmount, tradePath, user, 8, user, false, { from: user }
+    //         );
+    //         let tokenBalanceAfter = await token.balanceOf(swapProxy.address);
+    //         // console.log(`Balance changes: ${tokenBalanceAfter.sub(tokenBalanceBefore).toString(10)}`);
+    //         console.log(`[${routerNames[i]}] Transaction gas used ${tokenNames[j]} -> ETH without gas token: ${tx.receipt.gasUsed}`);
+    //         tx = await swapProxy.swapUniswap(
+    //           routers[i], tokenAmount, minDestAmount, tradePath, user, 8, user, true, { from: user }
+    //         );
+    //         tokenBalanceAfter = await token.balanceOf(swapProxy.address);
+    //         // console.log(`Balance changes: ${tokenBalanceAfter.sub(tokenBalanceBefore).toString(10)}`);
+    //         console.log(`[${routerNames[i]}] Transaction gas used ${tokenNames[j]} -> ETH with gas token: ${tx.receipt.gasUsed}`);
+    //       }
+    //     }
+    //   });
+    // });
   });
 });

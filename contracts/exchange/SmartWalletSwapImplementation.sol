@@ -44,38 +44,12 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         }
     }
 
-    function updateKyberProxy(IKyberProxy _kyberProxy) external onlyAdmin {
-        require(_kyberProxy != IKyberProxy(0), "invalid KyberProxy");
-        if (kyberProxy != _kyberProxy) {
-            kyberProxy = _kyberProxy;
-            emit UpdateKyberProxy(_kyberProxy);
-        }
-    }
-
     function updateLendingImplementation(
         ISmartWalletLending newImpl
     ) external onlyAdmin {
         require(newImpl != ISmartWalletLending(0), "invalid lending impl");
         lendingImpl = newImpl;
         emit UpdatedLendingImplementation(newImpl);
-    }
-
-    /// @dev can support to trade with Uniswap or its clone, for example: Sushiswap, SashimiSwap
-    function updateUniswapRouters(
-        IUniswapV2Router02[] calldata _uniswapRouters,
-        bool isAdded
-    )
-        external onlyAdmin
-    {
-        for(uint256 i = 0; i < _uniswapRouters.length; i++) {
-            require(_uniswapRouters[i] != IUniswapV2Router02(0), "invalid UniswapRouter");
-            if (isAdded) {
-                isRouterSupported[_uniswapRouters[i]] = true;
-            } else {
-                isRouterSupported[_uniswapRouters[i]] = false;
-            }
-        }
-        emit UpdateUniswapRouters(_uniswapRouters, isAdded);            
     }
 
     /// @dev to prevent other integrations to call trade from this contract
