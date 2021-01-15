@@ -200,6 +200,11 @@ function assertEqualArray(arr1, arr2, errorStr) {
   assert(arr1.equals(arr2), `${errorStr} actual=${arr1} expected=${arr2}`);
 };
 
+
+module.exports.assertTxSuccess = (tx) => {
+  expect(tx.receipt.status).to.equal(true);
+};
+
 // Warn if overriding existing method
 if(Array.prototype.equals)
     console.warn("Overriding existing Array.prototype.equals. Possible causes: New API defines the method, there's a framework conflict or you've got double inclusions in your code.");
