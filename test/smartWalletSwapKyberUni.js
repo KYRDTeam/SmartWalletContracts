@@ -19,9 +19,12 @@ const usdtAddress = '0xdac17f958d2ee523a2206206994597c13d831ec7';
 const usdcAddress = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
 const daiAddress = '0x6b175474e89094c44da98b954eedeac495271d0f';
 const gasTokenAddress = '0x0000000000b3F879cb30FE243b4Dfee438691c04';
+const aEthAddress = '0x3a3a65aab0dd2a17e3f1947ba16138cd37d08c04';
+const aUsdtAddress = '0x71fc860f7d3a592a4a98740e39db31d25db65ae8';
+const aavePoolV1Address = '0x398eC7346DcD622eDc5ae82352F02bE94C62d119';
+const aavePoolV2Address = '0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9';
 
-const {ethAddress, ethDecimals, calcDstQty, assertMost, emptyHint} = require('./helper');
-const Helper = require('./helper');
+const { ethAddress, ethDecimals, assertSameTokenBalance, assertTxSuccess } = require('./helper');
 
 let lending;
 let swapImplementation;
@@ -57,6 +60,8 @@ contract('SmartWalletSwapImplementation', accounts => {
       await swapProxy.updateLendingImplementation(lending.address, { from: admin });
       await swapProxy.updateSupportedPlatformWallets([user], true, { from: admin });
       await swapProxy.updateBurnGasHelper(burnGasHelper.address, { from: admin });
+      await lending.updateSwapImplementation(swapProxy.address, { from: admin });
+      await lending.updateAaveLendingPoolData(aavePoolV2Address, aavePoolV1Address, 0, weth, [ethAddress, usdtAddress], { from: admin });
 
       // mint and transfer gas token to user
       let gasToken = await GasToken.at(gasTokenAddress);
@@ -71,6 +76,46 @@ contract('SmartWalletSwapImplementation', accounts => {
       }
 
       swapProxy = await SmartWalletSwapImplementation.at(swapProxy.address);
+    });
+
+    it('should be able to take fee and deposit ETH to AAVE v1', async () => {
+      const bps = 8;
+      const srcAmount = new BN(10).pow(new BN(ethDecimals));
+      const swapTradePath = [ethAddress];
+
+      const tx = await swapProxy.swapUniswapAndDeposit(
+        0, uniswapRouter, srcAmount, 0, swapTradePath, bps, user, false,
+        { from: user, value: srcAmount }
+      );
+
+      assertTxSuccess(tx);
+
+      let aEthToken = await IERC20Ext.at(aEthAddress);
+      const stakedAmount = srcAmount.sub(srcAmount.mul(new BN(bps)).div(new BN(10000)));
+
+      await assertSameTokenBalance(user, aEthToken, stakedAmount);
+    });
+
+    it('should be able to swap ETH to USDT and deposit it to AAVE v1', async () => {
+      const depositToken = { symbol: 'USDT', address: usdtAddress }
+      const srcAmount = new BN(10).pow(new BN(ethDecimals));
+      const rateTradePath = [weth, depositToken.address];
+      const swapTradePath = [ethAddress, depositToken.address];
+
+      const rateOnUniswap = await swapProxy.getExpectedReturnUniswap(uniswapRouter, srcAmount, rateTradePath, 8);
+      const minDestAmount = rateOnUniswap.destAmount.mul(new BN(97)).div(new BN(100));
+
+      const tx = await swapProxy.swapUniswapAndDeposit(
+        0, uniswapRouter, srcAmount, minDestAmount, swapTradePath, 8, user, false,
+        { from: user, value: srcAmount }
+      );
+
+      assertTxSuccess(tx);
+
+      const destAmount = tx.logs[0].args.destAmount;
+      let aUsdtToken = await IERC20Ext.at(aUsdtAddress);
+
+      await assertSameTokenBalance(user, aUsdtToken, destAmount);
     });
 
     // it('trade on Kyber directly', async() => {
@@ -170,7 +215,7 @@ contract('SmartWalletSwapImplementation', accounts => {
           // console.log(`Expected dest amount: ${data.destAmount.toString(10)}`);
           // console.log(`Expected rate: ${data.expectedRate.toString(10)}`);
           let minDestAmount = data.destAmount.mul(new BN(97)).div(new BN(100));
-  
+
           // let ethBalanceBefore = await web3.utils.toBN(await web3.eth.getBalance(swapProxy.address));
           tradePath[0] = ethAddress; // trade needs to use eth address
           let tx = await swapProxy.swapUniswap(
@@ -227,7 +272,7 @@ contract('SmartWalletSwapImplementation', accounts => {
           // console.log(`Expected dest amount: ${data.destAmount.toString(10)}`);
           // console.log(`Expected rate: ${data.expectedRate.toString(10)}`);
           let minDestAmount = data.destAmount.mul(new BN(97)).div(new BN(100));
-  
+
           let tokenBalanceBefore = await token.balanceOf(swapProxy.address);
           tradePath[1] = ethAddress; // trade needs to use eth address
           let tx = await swapProxy.swapUniswap(
