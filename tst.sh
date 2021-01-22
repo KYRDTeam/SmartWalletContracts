@@ -8,8 +8,8 @@ while getopts "f:" arg; do
 done
 
 if [ -n "$FILE" ]; then
-  yarn hardhat test --no-compile --network develop $FILE
+  yarn hardhat test --no-compile --network hardhat $FILE
 else
   echo "Running all tests..."
-  yarn hardhat test --no-compile --network develop
+  yarn hardhat test --no-compile --network hardhat
 fi
