@@ -35,9 +35,7 @@ contract('SmartWalletSwapImplementation', accounts => {
     before('test trade in uniswap curve', async () => {
       user = accounts[0];
       admin = accounts[0];
-      burnGasHelper = await BurnGasHelper.new(
-        admin, gasTokenAddress, 14154, 6870, 24000
-      );
+      burnGasHelper = await BurnGasHelper.new(admin, gasTokenAddress);
 
       lending = await SmartWalletLending.new(admin);
       swapImplementation = await SmartWalletSwapImplementation.new(admin);

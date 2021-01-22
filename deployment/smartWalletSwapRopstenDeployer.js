@@ -59,9 +59,7 @@ async function main() {
   console.log(`Sending transactions with gas price: ${gasPrice.toString(10)} (${gasPrice.div(new BN(10).pow(new BN(9))).toString(10)} gweis)`);
 
   if (burnHelperAddr == undefined) {
-    burnGasHelper = await BurnGasHelper.new(
-      deployer, gst2, 14154, 6870, 24000
-    );
+    burnGasHelper = await BurnGasHelper.new(deployer, gst2);
     burnHelperAddr = burnGasHelper.address;
     console.log(`Deployed burn helper at ${burnHelperAddr}`);
   } else {
