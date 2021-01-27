@@ -19,6 +19,7 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         IWeth weth;
         IAaveLendingPoolV1 lendingPoolV1;
         mapping (IERC20Ext => address) aTokensV1;
+        address lendingPoolCoreV1;
         uint16 referalCode;
     }
 
@@ -40,6 +41,7 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
     event UpdatedAaveLendingPool(
         IAaveLendingPoolV2 poolV2,
         IAaveLendingPoolV1 poolV1,
+        address lendingPoolCoreV1,
         uint16 referalCode,
         IWeth weth,
         IERC20Ext[] tokens,
@@ -71,6 +73,7 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
     function updateAaveLendingPoolData(
         IAaveLendingPoolV2 poolV2,
         IAaveLendingPoolV1 poolV1,
+        address lendingPoolCoreV1,
         uint16 referalCode,
         IWeth weth,
         IERC20Ext[] calldata tokens
@@ -80,6 +83,7 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         require(weth != IWeth(0), "invalid weth");
         aaveLendingPool.lendingPoolV2 = poolV2;
         aaveLendingPool.lendingPoolV1 = poolV1;
+        aaveLendingPool.lendingPoolCoreV1 = lendingPoolCoreV1;
         aaveLendingPool.referalCode = referalCode;
         aaveLendingPool.weth = weth;
 
@@ -108,7 +112,7 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
             }
         }
 
-        emit UpdatedAaveLendingPool(poolV2, poolV1, referalCode, weth, tokens, aTokensV1, aTokensV2);
+        emit UpdatedAaveLendingPool(poolV2, poolV1, lendingPoolCoreV1, referalCode, weth, tokens, aTokensV1, aTokensV2);
     }
 
     function updateCompoundData(
@@ -167,11 +171,12 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         require(getBalance(token, address(this)) >= amount, "low balance");
         if (platform == LendingPlatform.AAVE_V1) {
             IAaveLendingPoolV1 poolV1 = aaveLendingPool.lendingPoolV1;
+            address lendingPoolCoreV1 = aaveLendingPool.lendingPoolCoreV1;
             IERC20Ext aToken = IERC20Ext(aaveLendingPool.aTokensV1[token]);
             require(aToken != IERC20Ext(0), "aToken not found");
             // approve allowance if needed
             if (token != ETH_TOKEN_ADDRESS) {
-                safeApproveAllowance(address(poolV1), token);
+                safeApproveAllowance(address(lendingPoolCoreV1), token);
             }
             // deposit and compute received aToken amount
             uint256 aTokenBalanceBefore = aToken.balanceOf(address(this));
