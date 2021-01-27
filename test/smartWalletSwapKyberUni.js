@@ -22,9 +22,10 @@ const gasTokenAddress = '0x0000000000b3F879cb30FE243b4Dfee438691c04';
 const aEthAddress = '0x3a3a65aab0dd2a17e3f1947ba16138cd37d08c04';
 const aUsdtAddress = '0x71fc860f7d3a592a4a98740e39db31d25db65ae8';
 const aavePoolV1Address = '0x398eC7346DcD622eDc5ae82352F02bE94C62d119';
+const aavePoolCoreV1Address = '0x3dfd23A6c5E8BbcFc9581d2E864a68feb6a076d3';
 const aavePoolV2Address = '0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9';
 
-const { ethAddress, ethDecimals, assertSameTokenBalance, assertTxSuccess } = require('./helper');
+const { emptyHint, ethAddress, ethDecimals, assertSameTokenBalance, assertTxSuccess } = require('./helper');
 
 let lending;
 let swapImplementation;
@@ -61,7 +62,14 @@ contract('SmartWalletSwapImplementation', accounts => {
       await swapProxy.updateSupportedPlatformWallets([user], true, { from: admin });
       await swapProxy.updateBurnGasHelper(burnGasHelper.address, { from: admin });
       await lending.updateSwapImplementation(swapProxy.address, { from: admin });
-      await lending.updateAaveLendingPoolData(aavePoolV2Address, aavePoolV1Address, 0, weth, [ethAddress, usdtAddress], { from: admin });
+      await lending.updateAaveLendingPoolData(
+        aavePoolV2Address,
+        aavePoolV1Address,
+        aavePoolCoreV1Address,
+        0,
+        weth,
+        [ethAddress, usdtAddress], { from: admin }
+      );
 
       // mint and transfer gas token to user
       let gasToken = await GasToken.at(gasTokenAddress);

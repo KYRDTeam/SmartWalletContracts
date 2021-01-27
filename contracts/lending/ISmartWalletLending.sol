@@ -21,6 +21,7 @@ interface ISmartWalletLending {
     function updateAaveLendingPoolData(
         IAaveLendingPoolV2 poolV2,
         IAaveLendingPoolV1 poolV1,
+        address lendingPoolCoreV1,
         uint16 referalCode,
         IWeth weth,
         IERC20Ext[] calldata tokens
