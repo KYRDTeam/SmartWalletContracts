@@ -11,13 +11,13 @@ const IERC20Ext = artifacts.require('@kyber.network/utils-sc/contracts/IERC20Ext
 const {ethAddress, zeroAddress, emptyHint} = require('../../test/helper');
 
 let impl;
-let implAddr;// = '0x90dE8d3629B0A7D2c40DBe984e07647326F8AF90';
+let implAddr = '0x7617E806f18aE27D617e75baDa80a73238Cf1cC7';
 let proxy;
-let proxyAddr;// = '0xd2Bb6464F4452FDfF8C742dc7cD620d2F5b0BB49';
+let proxyAddr = '0x4A0C59CcCae7B4F0732a4A1b9A7BDA49cc1d88F9';
 let burnGasHelper;
-let burnHelperAddr = '0x5758BD3DC2552e9072d5Ff6c0312816f541A0213';
+let burnHelperAddr = "0x1ceE38751C1D310ca7Ee11367532044466cB1d43";
 let lendingImpl;
-let lendingAddr;// = '0xF6A6992181271Aa0aa464a7B2e28E6CD9843eD57';
+let lendingAddr = '0x748070622D3105e522758f6c1722B162895E2790';
 
 
 let deployer;
@@ -42,6 +42,8 @@ const compTokens = [
   '0x8af93cae804cc220d1a608d4fa54d1b6ca5eb361',
   '0x58145bc5407d63daf226e4870beeb744c588f149'
 ]
+const lendingPoolV1 = "0x9E5C7835E4b13368fd628196C4f1c6cEc89673Fa";
+const lendingPoolCoreV1 = "0x4295Ee704716950A4dE7438086d6f0FBC0BA9472";
 
 const supportedWallets = [
   '0x3fFFF2F4f6C0831FAC59534694ACd14AC2Ea501b', // android
@@ -58,9 +60,7 @@ async function main() {
   console.log(`Sending transactions with gas price: ${gasPrice.toString(10)} (${gasPrice.div(new BN(10).pow(new BN(9))).toString(10)} gweis)`);
 
   if (burnHelperAddr == undefined) {
-    burnGasHelper = await BurnGasHelper.new(
-      deployer, gst2, 14154, 6870, 24000
-    );
+    burnGasHelper = await BurnGasHelper.new(deployer, gst2);
     burnHelperAddr = burnGasHelper.address;
     console.log(`Deployed burn helper at ${burnHelperAddr}`);
   } else {
@@ -93,8 +93,8 @@ async function main() {
   } else {
     proxy = await SmartWalletSwapProxy.at(proxyAddr);
     console.log(`Interacting proxy at ${proxy.address}`);
-    await proxy.updateNewImplementation(impl.address);
-    console.log(`Updated implementation: ${impl.address}`)
+    // await proxy.updateNewImplementation(impl.address);
+    // console.log(`Updated implementation: ${impl.address}`)
   }
 
   let swapProxy = await SmartWalletSwapImplementation.at(proxy.address);
@@ -102,19 +102,21 @@ async function main() {
   console.log(`Updated lending impl to proxy ${lendingAddr}`);
   await swapProxy.updateBurnGasHelper(burnGasHelper.address);
   console.log(`Updated burn gas helper for proxy`);
-  await swapProxy.updateKyberProxy(kyberProxy, { gasPrice: gasPrice });
-  console.log(`Updated kyber proxy`);
-  await swapProxy.updateUniswapRouters([uniswapRouter], true, { gasPrice: gasPrice });
-  console.log(`Added uniswap routers`);
   await swapProxy.updateSupportedPlatformWallets(supportedWallets, true, { gasPrice: gasPrice });
   console.log(`Added supported platform wallets`);
 
   await lendingImpl.updateAaveLendingPoolData(
     zeroAddress,
-    '0x9E5C7835E4b13368fd628196C4f1c6cEc89673Fa',
+    lendingPoolV1,
+    lendingPoolCoreV1,
     0,
-    '0x9E5C7835E4b13368fd628196C4f1c6cEc89673Fa', // weth
-    [ethAddress]
+    '0x9E5C7835E4b13368fd628196C4f1c6cEc89673Fa', // fake weth, only use for lending pool v2
+    [
+      ethAddress,
+      "0xf80A32A835F79D7787E8a8ee5721D0fEaFd78108", // dai
+      "0x851dEf71f0e6A903375C1e536Bd9ff1684BAD802", // usdc
+      "0xCe4aA1dE3091033Ba74FA2Ad951f6adc5E5cF361", // knc
+    ]
   );
   console.log(`Updated aave lending pool data to lending impl`);
   await lendingImpl.updateCompoundData(comp, cEth, compTokens);
@@ -122,11 +124,11 @@ async function main() {
   await lendingImpl.updateSwapImplementation(proxy.address);
   console.log(`Updated proxy to lending impl`)
 
-  // for(let i = 0; i < supportedTokens.length; i++) {
-  //   let token = await IERC20Ext.at(supportedTokens[i]);
-  //   await token.approve(swapProxy.address, new BN(2).pow(new BN(255)), { gasPrice: gasPrice });
-  //   console.log(`Approved allowances for token: ${supportedTokens[i]}`);
-  // }
+  for(let i = 0; i < supportedTokens.length; i++) {
+    let token = await IERC20Ext.at(supportedTokens[i]);
+    await token.approve(swapProxy.address, new BN(2).pow(new BN(255)), { gasPrice: gasPrice });
+    console.log(`Approved allowances for token: ${supportedTokens[i]}`);
+  }
 
   let gasToken = await GasToken.at(gst2);
   await gasToken.mint(160);
@@ -204,7 +206,7 @@ async function main() {
   let cEthBalance = await cEthToken.balanceOf(deployer);
   let cEthAmount = cEthBalance.div(new BN(5));
   console.log(`cETH balance: ${cEthBalance.toString(10)}`);
-  await cEthToken.approve(swapProxy.address, new BN(2).pow(new BN(255)));
+  // await cEthToken.approve(swapProxy.address, new BN(2).pow(new BN(255)));
   tx4 = await swapProxy.withdrawFromLendingPlatform(2, ethAddress, cEthAmount, new BN(0), true, { gas: 2000000 });
   console.log(`Withdraw eth from compound, gas used: ${tx4.receipt.gasUsed}`);
 }
