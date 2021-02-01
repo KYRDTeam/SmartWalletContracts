@@ -33,7 +33,7 @@ contract BurnGasHelper is IBurnGasHelper, Utils, Withdrawable {
             safeNumTokens = (gas - 27710) / 7020; // (1148 + 5722 + 150);
         }
 
-        uint256 gasSpent = 21000 + 16 * msg.data.length + gas - gasConsumption;
+        uint256 gasSpent = 21000 + 16 * msg.data.length + gasConsumption;
         numGas = (gasSpent + 14154) / 41947;
 
         numGas = minOf(safeNumTokens, numGas);
