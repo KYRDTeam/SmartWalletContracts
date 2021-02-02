@@ -256,13 +256,12 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
                 require(success, "transfer eth to sender failed");
             } else {
                 // withdraw token directly to user's wallet
-                tokenBalanceBefore = getBalance(token, msg.sender);
-                returnedAmount = aaveLendingPool.lendingPoolV2.withdraw(address(token), amount, msg.sender);
-                tokenBalanceAfter = getBalance(token, msg.sender);
-                // valid received amount in msg.sender
+                tokenBalanceBefore = getBalance(token, onBehalfOf);
+                returnedAmount = aaveLendingPool.lendingPoolV2.withdraw(address(token), amount, onBehalfOf);
+                tokenBalanceAfter = getBalance(token, onBehalfOf);
+                // valid received amount in user's wallet
                 require(tokenBalanceAfter.sub(tokenBalanceBefore) >= returnedAmount, "invalid return");
                 require(returnedAmount >= minReturn, "low returned amount");
-                token.safeTransfer(onBehalfOf, returnedAmount);
             }
         } else {
             // COMPOUND
