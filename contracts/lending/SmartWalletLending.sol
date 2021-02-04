@@ -227,7 +227,6 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         external override onlySwapImpl returns (uint256 returnedAmount)
     {
         address lendingToken = getLendingToken(platform, token);
-        require(IERC20Ext(lendingToken).balanceOf(address(this)) >= amount, "bad lending token balance");
 
         uint256 tokenBalanceBefore;
         uint256 tokenBalanceAfter;
