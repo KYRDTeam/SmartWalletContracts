@@ -332,10 +332,51 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         );
     }
 
+    /// @dev borrow token from Lending platforms (AAVE, COMPOUND)
+    /// @param platform platform to borrow token
+    /// @param token underlying token to borrow, e.g ETH, USDT, DAI
+    /// @param borrowAmount amount of cToken (COMPOUND) or aToken (AAVE) to borrow
+    /// @param interestRateMode stable or variable rate mode
+    /// @param useGasToken whether to use gas token or not
+    function borrowFromLendingPlatform(
+        ISmartWalletLending.LendingPlatform platform,
+        IERC20Ext token,
+        uint256 borrowAmount,
+        uint256 interestRateMode,
+        bool useGasToken
+    )
+        external override nonReentrant
+    {
+        require(lendingImpl != ISmartWalletLending(0));
+        uint256 gasBefore = useGasToken ? gasleft() : 0;
+
+        lendingImpl.borrowFrom(
+            platform,
+            msg.sender,
+            token,
+            borrowAmount,
+            interestRateMode
+        );
+
+        uint256 numGasBurns;
+        if (useGasToken) {
+            numGasBurns = burnGasTokensAfter(gasBefore);
+        }
+        emit BorrowFromLending(
+            platform,
+            token,
+            borrowAmount,
+            interestRateMode,
+            useGasToken,
+            numGasBurns
+        );
+    }
+
     /// @dev withdraw token from Lending platforms (AAVE, COMPOUND)
     /// @param platform platform to withdraw token
     /// @param token underlying token to withdraw, e.g ETH, USDT, DAI
     /// @param amount amount of cToken (COMPOUND) or aToken (AAVE) to withdraw
+    /// @param minReturn minimum amount of USDT tokens to return
     /// @param useGasToken whether to use gas token or not
     function withdrawFromLendingPlatform(
         ISmartWalletLending.LendingPlatform platform,
@@ -399,42 +440,54 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     )
         external override nonReentrant payable returns (uint256 destAmount)
     {
-        require(lendingImpl != ISmartWalletLending(0));
-        uint256 gasBefore = useGasToken ? gasleft() : 0;
-        if (src == dest) {
-            // just collect src token, no need to swap
-            destAmount = safeForwardTokenAndCollectFee(
-                src,
-                msg.sender,
-                payable(address(lendingImpl)),
-                srcAmount,
-                0, // no fee if repay directly
-                platformWallet
-            );
-        } else {
-            // use min rate so it can return earlier if failed to swap
-            uint256 minRate = calcRateFromQty(
-                srcAmount,
-                payAmount,
-                getDecimals(src),
-                getDecimals(dest)
-            );
-            destAmount = doKyberTrade(
-                src,
-                dest,
-                srcAmount,
-                minRate,
-                payable(address(lendingImpl)),
-                feeAndRateMode % BPS,
-                platformWallet,
-                hint
-            );
-        }
-        lendingImpl.repayBorrowTo(platform, msg.sender, dest, destAmount, payAmount, feeAndRateMode / BPS);
-
         uint256 numGasBurns;
-        if (useGasToken) {
-            numGasBurns = burnGasTokensAfter(gasBefore);
+        {
+            require(lendingImpl != ISmartWalletLending(0));
+            uint256 gasBefore = useGasToken ? gasleft() : 0;
+
+            if (src == dest) {
+                // just collect src token, no need to swap
+                destAmount = safeForwardTokenAndCollectFee(
+                    src,
+                    msg.sender,
+                    payable(address(lendingImpl)),
+                    srcAmount,
+                    0, // no fee if repay directly
+                    platformWallet
+                );
+            } else {
+                // use user debt value if debt is <= payAmount                
+                payAmount = checkUserDebt(
+                    ISmartWalletLending.LendingPlatform.AAVE_V1 == platform,
+                    address(dest),
+                    payAmount
+                );
+
+                // use min rate so it can return earlier if failed to swap
+                uint256 minRate = calcRateFromQty(
+                    srcAmount,
+                    payAmount,
+                    src.decimals(),
+                    dest.decimals()
+                );
+
+                destAmount = doKyberTrade(
+                    src,
+                    dest,
+                    srcAmount,
+                    minRate,
+                    payable(address(lendingImpl)),
+                    feeAndRateMode % BPS,
+                    platformWallet,
+                    hint
+                );
+            }
+            
+            lendingImpl.repayBorrowTo(platform, msg.sender, dest, destAmount, payAmount, feeAndRateMode / BPS);
+
+            if (useGasToken) {
+                numGasBurns = burnGasTokensAfter(gasBefore);
+            }
         }
 
         emit KyberTradeAndRepay(
@@ -474,11 +527,11 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         external override nonReentrant payable returns (uint256 destAmount)
     {
         uint256 numGasBurns;
-        {
-            // scope to prevent stack too deep
+        { // scope to prevent stack too deep
             require(lendingImpl != ISmartWalletLending(0));
             uint256 gasBefore = useGasToken ? gasleft() : 0;
             IERC20Ext dest = IERC20Ext(tradePath[tradePath.length - 1]);
+
             if (tradePath.length == 1) {
                 // just collect src token, no need to swap
                 destAmount = safeForwardTokenAndCollectFee(
@@ -490,10 +543,17 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                     platformWallet
                 );
             } else {
+                // use user debt value if debt is <= payAmount
+                uint256 debtAmount = checkUserDebt(
+                    ISmartWalletLending.LendingPlatform.AAVE_V1 == platform,
+                    address(dest),
+                    payAmount
+                );
+
                 destAmount = swapUniswapInternal(
                     router,
                     srcAmount,
-                    payAmount,
+                    debtAmount,
                     tradePath,
                     payable(address(lendingImpl)),
                     feeAndRateMode % BPS,
@@ -501,6 +561,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                     false
                 );
             }
+            
             lendingImpl.repayBorrowTo(
                 platform,
                 msg.sender,
@@ -509,6 +570,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                 payAmount,
                 feeAndRateMode / BPS
             );
+
             if (useGasToken) {
                 numGasBurns = burnGasTokensAfter(gasBefore);
             }
@@ -599,6 +661,20 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         );
     }
 
+    function checkUserDebt(bool isV1, address token, uint256 amount) internal view returns (uint256) {
+        uint256 debt = lendingImpl.getUserDebt(
+            isV1,
+            token,
+            msg.sender
+        );
+
+        if (debt >= amount) {
+            return amount;
+        }
+
+        return debt;
+    }
+
     function doKyberTrade(
         IERC20Ext src,
         IERC20Ext dest,
@@ -681,7 +757,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             if (tradePath[tradeLen - 1] == address(ETH_TOKEN_ADDRESS)) {
                 tradePath[tradeLen - 1] = router.WETH();
             }
-        }
+        }        
 
         uint256 srcAmountFee;
         uint256 srcAmountAfterFee;
@@ -709,7 +785,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                 // swap token -> eth
                 amounts = router.swapExactTokensForETH(
                     srcAmountAfterFee, input.minData, tradePath, recipient, MAX_AMOUNT
-                );
+                );                
             } else {
                 // swap token -> token
                 amounts = router.swapExactTokensForTokens(
@@ -747,7 +823,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             actualSrcAmount = srcAmount;
         } else {
             require(msg.value == 0, "bad msg value");
-            uint256 balanceBefore = src.balanceOf(address(this));
+            uint256 balanceBefore = src.balanceOf(address(this));            
             src.safeTransferFrom(msg.sender, address(this), srcAmount);
             uint256 balanceAfter = src.balanceOf(address(this));
             actualSrcAmount = balanceAfter.sub(balanceBefore);

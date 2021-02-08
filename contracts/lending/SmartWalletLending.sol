@@ -9,12 +9,14 @@ import "@kyber.network/utils-sc/contracts/Withdrawable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
+
 contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, ReentrancyGuard {
     using SafeERC20 for IERC20Ext;
     using SafeMath for uint256;
 
     struct AaveLendingPoolData {
         IAaveLendingPoolV2 lendingPoolV2;
+        IProtocolDataProvider provider;
         mapping (IERC20Ext => address) aTokensV2;
         IWeth weth;
         IAaveLendingPoolV1 lendingPoolV1;
@@ -215,6 +217,24 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         }
     }
 
+    /// @dev borrow from lending platforms like AAVE v2, COMPOUND
+    function borrowFrom(
+        LendingPlatform platform,
+        address payable onBehalfOf,
+        IERC20Ext token,
+        uint256 borrowAmount,
+        uint256 interestRateMode
+    )
+        external override onlySwapImpl
+    {
+        require(platform != LendingPlatform.AAVE_V1, "Aave V1 not supported");
+
+        if (platform == LendingPlatform.AAVE_V2) {
+            IAaveLendingPoolV2 poolV2 = aaveLendingPool.lendingPoolV2;
+            poolV2.borrow(address(token), borrowAmount, interestRateMode, aaveLendingPool.referalCode, onBehalfOf);
+        }
+    }
+
     /// @dev withdraw from lending platforms like AAVE, COMPOUND
     ///     expect amount of aToken or cToken should already be in the contract
     function withdrawFrom(
@@ -288,8 +308,10 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
     ) external override onlySwapImpl {
         require(amount >= payAmount, "invalid pay amount");
         require(getBalance(token, address(this)) >= amount, "bad token balance");
+
         if (amount > payAmount) {
             // transfer back token
+            // actualAmount = payAmount;
             transferToken(payable(onBehalfOf), token, amount - payAmount);
         }
         if (platform == LendingPlatform.AAVE_V1) {
@@ -354,6 +376,41 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
             return aaveLendingPool.aTokensV2[token];
         }
         return compoundData.cTokens[token];
+    }
+
+    function getUserDebt(bool _isV1, address _reserve, address _user)
+        external
+        override
+        view
+        returns (uint256 debt)
+    {
+        if (_isV1) {
+            IAaveLendingPoolV1 pool = aaveLendingPool.lendingPoolV1;
+            (
+                ,
+                debt,
+                ,
+                ,
+                ,
+                ,
+                ,
+                ,
+                ,
+            ) = pool.getUserReserveData(_reserve, _user);
+        } else {
+            IProtocolDataProvider provider = aaveLendingPool.provider;
+            (
+                ,
+                uint256 stableDebt,
+                uint256 variableDebt,
+                ,
+                ,
+                ,
+                ,
+                ,
+            ) = provider.getUserReserveData(_reserve, _user);
+            debt = stableDebt > 0 ? stableDebt : variableDebt;
+        }
     }
 
     function safeApproveAllowance(address spender, IERC20Ext token) internal {

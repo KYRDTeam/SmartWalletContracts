@@ -21,8 +21,8 @@ module.exports = {
     },
     hardhat: {
       forking: {
-        // url: process.env.NODE_URL
-        url: 'http://localhost:8545'
+        url: process.env.NODE_URL
+        // url: 'http://localhost:8545'
       },
       accounts: [
         // 20 accounts with 10^14 ETH each 
