@@ -348,11 +348,20 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     {
         require(lendingImpl != ISmartWalletLending(0));
         uint256 gasBefore = useGasToken ? gasleft() : 0;
-        address lendingToken = lendingImpl.getLendingToken(platform, token);
-        require(lendingToken != address(0), "unsupported token");
-        IERC20Ext(lendingToken).safeTransferFrom(msg.sender, address(lendingImpl), amount);
+        IERC20Ext lendingToken = IERC20Ext(lendingImpl.getLendingToken(platform, token));
+        require(lendingToken != IERC20Ext(0), "unsupported token");
+        // AAVE aToken's transfer logic could have rounding errors
+        uint256 tokenBalanceBefore = lendingToken.balanceOf(address(lendingImpl));
+        lendingToken.safeTransferFrom(msg.sender, address(lendingImpl), amount);
+        uint256 tokenBalanceAfter = lendingToken.balanceOf(address(lendingImpl));
 
-        returnedAmount = lendingImpl.withdrawFrom(platform, msg.sender, token, amount, minReturn);
+        returnedAmount = lendingImpl.withdrawFrom(
+            platform,
+            msg.sender,
+            token,
+            tokenBalanceAfter.sub(tokenBalanceBefore),
+            minReturn
+        );
 
         uint256 numGasBurns;
         if (useGasToken) {
