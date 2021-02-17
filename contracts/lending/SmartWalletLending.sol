@@ -227,7 +227,6 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         external override onlySwapImpl returns (uint256 returnedAmount)
     {
         address lendingToken = getLendingToken(platform, token);
-        require(IERC20Ext(lendingToken).balanceOf(address(this)) >= amount, "bad lending token balance");
 
         uint256 tokenBalanceBefore;
         uint256 tokenBalanceAfter;
@@ -256,13 +255,12 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
                 require(success, "transfer eth to sender failed");
             } else {
                 // withdraw token directly to user's wallet
-                tokenBalanceBefore = getBalance(token, msg.sender);
-                returnedAmount = aaveLendingPool.lendingPoolV2.withdraw(address(token), amount, msg.sender);
-                tokenBalanceAfter = getBalance(token, msg.sender);
-                // valid received amount in msg.sender
+                tokenBalanceBefore = getBalance(token, onBehalfOf);
+                returnedAmount = aaveLendingPool.lendingPoolV2.withdraw(address(token), amount, onBehalfOf);
+                tokenBalanceAfter = getBalance(token, onBehalfOf);
+                // valid received amount in user's wallet
                 require(tokenBalanceAfter.sub(tokenBalanceBefore) >= returnedAmount, "invalid return");
                 require(returnedAmount >= minReturn, "low returned amount");
-                token.safeTransfer(onBehalfOf, returnedAmount);
             }
         } else {
             // COMPOUND
@@ -300,29 +298,29 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
             if (token != ETH_TOKEN_ADDRESS) {
                 safeApproveAllowance(address(poolV1), token);
             }
-            poolV1.repay{ value: token == ETH_TOKEN_ADDRESS ? amount : 0 }(
-                address(token), amount, onBehalfOf
+            poolV1.repay{ value: token == ETH_TOKEN_ADDRESS ? payAmount : 0 }(
+                address(token), payAmount, onBehalfOf
             );
         } else if (platform == LendingPlatform.AAVE_V2) {
             IAaveLendingPoolV2 poolV2 = aaveLendingPool.lendingPoolV2;
             if (token == ETH_TOKEN_ADDRESS) {
                 IWeth weth = aaveLendingPool.weth;
-                weth.deposit{ value: amount }();
+                weth.deposit{ value: payAmount }();
                 safeApproveAllowance(address(poolV2), weth);
-                poolV2.repay(address(weth), amount, rateMode, onBehalfOf);
+                poolV2.repay(address(weth), payAmount, rateMode, onBehalfOf);
             } else {
                 safeApproveAllowance(address(poolV2), token);
-                poolV2.repay(address(token), amount, rateMode, onBehalfOf);
+                poolV2.repay(address(token), payAmount, rateMode, onBehalfOf);
             }
         } else {
             // compound
             address cToken = compoundData.cTokens[token];
             require(cToken != address(0), "token is not supported by Compound");
             if (token == ETH_TOKEN_ADDRESS) {
-                ICompEth(cToken).repayBorrowBehalf{ value: amount }(onBehalfOf);
+                ICompEth(cToken).repayBorrowBehalf{ value: payAmount }(onBehalfOf);
             } else {
                 safeApproveAllowance(cToken, token);
-                ICompErc20(cToken).repayBorrowBehalf(onBehalfOf, amount);
+                ICompErc20(cToken).repayBorrowBehalf(onBehalfOf, payAmount);
             }
         }
     }
