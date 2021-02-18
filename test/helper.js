@@ -22,7 +22,7 @@ const AAVE_V1_ADDRESSES = {
   aavePoolCoreV1Address: '0x3dfd23A6c5E8BbcFc9581d2E864a68feb6a076d3',
 };
 const AAVE_V2_ADDRESSES = {
-  aEthAddress: '0x030bA81f1c18d280636F32af80b9AAd02Cf0854e',
+  aWethAddress: '0x030bA81f1c18d280636F32af80b9AAd02Cf0854e',
   aUsdtAddress: '0x3Ed3B47Dd13EC9a98b44e6204A523E766B225811',
   aavePoolV2Address: '0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9',
   aaveProviderV2Address: '0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d',

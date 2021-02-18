@@ -40,6 +40,7 @@ interface ISmartWalletLending {
 
     function updateAaveLendingPoolData(
         IAaveLendingPoolV2 poolV2,
+        IProtocolDataProvider provider,
         IAaveLendingPoolV1 poolV1,
         address lendingPoolCoreV1,
         uint16 referalCode,
@@ -94,7 +95,7 @@ interface ISmartWalletLending {
 
     function getLendingToken(LendingPlatform platform, IERC20Ext token) external view returns(address);
 
-    function getUserDebt(bool isV1, address reserve, address user)
+    function getUserDebt(LendingPlatform platform, address reserve, address user)
         external
         view
         returns (uint256 debt);

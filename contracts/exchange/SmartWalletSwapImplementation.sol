@@ -445,42 +445,44 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             require(lendingImpl != ISmartWalletLending(0));
             uint256 gasBefore = useGasToken ? gasleft() : 0;
 
-            if (src == dest) {
-                // just collect src token, no need to swap
-                destAmount = safeForwardTokenAndCollectFee(
-                    src,
-                    msg.sender,
-                    payable(address(lendingImpl)),
-                    srcAmount,
-                    0, // no fee if repay directly
-                    platformWallet
-                );
-            } else {
-                // use user debt value if debt is <= payAmount                
-                payAmount = checkUserDebt(
-                    ISmartWalletLending.LendingPlatform.AAVE_V1 == platform,
-                    address(dest),
-                    payAmount
-                );
+            {
+                if (src == dest) {
+                    // just collect src token, no need to swap
+                    destAmount = safeForwardTokenAndCollectFee(
+                        src,
+                        msg.sender,
+                        payable(address(lendingImpl)),
+                        srcAmount,
+                        0, // no fee if repay directly
+                        platformWallet
+                    );
+                } else {
+                    // use user debt value if debt is <= payAmount                
+                    payAmount = checkUserDebt(
+                        platform,
+                        address(dest),
+                        payAmount
+                    );
 
-                // use min rate so it can return earlier if failed to swap
-                uint256 minRate = calcRateFromQty(
-                    srcAmount,
-                    payAmount,
-                    src.decimals(),
-                    dest.decimals()
-                );
+                    // use min rate so it can return earlier if failed to swap
+                    uint256 minRate = calcRateFromQty(
+                        srcAmount,
+                        payAmount,
+                        src.decimals(),
+                        dest.decimals()
+                    );
 
-                destAmount = doKyberTrade(
-                    src,
-                    dest,
-                    srcAmount,
-                    minRate,
-                    payable(address(lendingImpl)),
-                    feeAndRateMode % BPS,
-                    platformWallet,
-                    hint
-                );
+                    destAmount = doKyberTrade(
+                        src,
+                        dest,
+                        srcAmount,
+                        minRate,
+                        payable(address(lendingImpl)),
+                        feeAndRateMode % BPS,
+                        platformWallet,
+                        hint
+                    );
+                }
             }
             
             lendingImpl.repayBorrowTo(platform, msg.sender, dest, destAmount, payAmount, feeAndRateMode / BPS);
@@ -544,8 +546,8 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                 );
             } else {
                 // use user debt value if debt is <= payAmount
-                uint256 debtAmount = checkUserDebt(
-                    ISmartWalletLending.LendingPlatform.AAVE_V1 == platform,
+                payAmount = checkUserDebt(
+                    platform,
                     address(dest),
                     payAmount
                 );
@@ -553,7 +555,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                 destAmount = swapUniswapInternal(
                     router,
                     srcAmount,
-                    debtAmount,
+                    payAmount,
                     tradePath,
                     payable(address(lendingImpl)),
                     feeAndRateMode % BPS,
@@ -661,9 +663,9 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         );
     }
 
-    function checkUserDebt(bool isV1, address token, uint256 amount) internal view returns (uint256) {
+    function checkUserDebt(ISmartWalletLending.LendingPlatform platform, address token, uint256 amount) internal view returns (uint256) {
         uint256 debt = lendingImpl.getUserDebt(
-            isV1,
+            platform,
             token,
             msg.sender
         );
@@ -672,7 +674,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             return amount;
         }
 
-        return debt;
+        return debt.add(1e11); // add small excess due to accruing interest
     }
 
     function doKyberTrade(
