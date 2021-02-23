@@ -1,3 +1,5 @@
+const AaveLendingPoolV1 = artifacts.require('IAaveLendingPoolV1.sol');
+
 const {
   ethAddress,
   usdtAddress,
@@ -62,6 +64,7 @@ module.exports.setupBeforeTest = async (
   );
   await lending.updateCompoundData(comptroller, cEthAddress, [cUsdtAddress], { from: admin });
 
+  let aaveV1Pool = await AaveLendingPoolV1.at(aavePoolV1Address);
   let gasToken = await GasToken.at(gasTokenAddress);
   let aEthV1Token = await IERC20Ext.at(aEthV1Address);
   let aEthV2Token = await IERC20Ext.at(aEthV2Address);
@@ -69,6 +72,7 @@ module.exports.setupBeforeTest = async (
   let aUsdtV2Token = await IERC20Ext.at(aUsdtV2Address);
   let cEthToken = await IERC20Ext.at(cEthAddress);
   let cUsdtToken = await IERC20Ext.at(cUsdtAddress);
+
   const lendingUsdtTokensByPlatform = [aUsdtV1Token, aUsdtV2Token, cUsdtToken];
   const lendingEthTokensByPlatform = [aEthV1Token, aEthV2Token, cEthToken];
 
@@ -85,7 +89,7 @@ module.exports.setupBeforeTest = async (
   swapProxy = await SmartWalletSwapImplementation.at(swapProxy.address);
 
   return { user, lending, swapImplementation, swapProxy, burnGasHelper, gasToken, aEthV1Token, aUsdtV1Token,
-    aUsdtV2Token, cUsdtToken, lendingUsdtTokensByPlatform, aEthV2Token, lendingEthTokensByPlatform }
+    aUsdtV2Token, cUsdtToken, lendingUsdtTokensByPlatform, aEthV2Token, lendingEthTokensByPlatform, aaveV1Pool }
 }
 
 module.exports.setupBeforeEachTest = async (gasToken, user) => {
