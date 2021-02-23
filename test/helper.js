@@ -10,14 +10,25 @@ const BPS = new BN(10000);
 const precisionUnits = (new BN(10).pow(new BN(18)));
 const ethDecimals = new BN(18);
 const ethAddress = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+const usdtAddress = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
+const uniswapRouter = '0x7a250d5630b4cf539739df2c5dacb4c659f2488d';
+const aEthV2Address = '0x030bA81f1c18d280636F32af80b9AAd02Cf0854e';
+const aUsdtV1Address = '0x71fc860f7d3a592a4a98740e39db31d25db65ae8';
+const aUsdtV2Address = '0x3ed3b47dd13ec9a98b44e6204a523e766b225811';
+const cUsdtAddress = '0xf650c3d88d12db855b8bf7d11be6c55a4e07dcc9';
+const comptroller = '0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b';
+const cEthAddress = '0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5';
 const zeroAddress = constants.ZERO_ADDRESS;
 const emptyHint = '0x';
 const zeroBN = new BN(0);
 const MAX_QTY = new BN(10).pow(new BN(28));
 const MAX_RATE = precisionUnits.mul(new BN(10).pow(new BN(7)));
 const MAX_ALLOWANCE = ((new BN(2)).pow(new BN(256))).sub(new BN(1));
-module.exports = {BPS, precisionUnits, ethDecimals, ethAddress, zeroAddress, 
-  emptyHint, zeroBN, MAX_QTY, MAX_RATE, MAX_ALLOWANCE};
+const lendingPlatforms = [0, 1, 2];
+
+module.exports = {BPS, precisionUnits, ethDecimals, ethAddress, zeroAddress, uniswapRouter,
+  lendingPlatforms, usdtAddress, emptyHint, zeroBN, MAX_QTY, MAX_RATE, MAX_ALLOWANCE, aUsdtV1Address, aUsdtV2Address,
+  cUsdtAddress, comptroller, cEthAddress, aEthV2Address};
 
 module.exports.isRevertErrorMessageContains = function(error, msg) {
     return (error.message.search(msg) >= 0);
@@ -240,16 +251,16 @@ Object.defineProperty(Array.prototype, "equals", {enumerable: false});
 
 module.exports.assertApproximate = assertApproximate;
 
-module.exports.assertMost = function(val1, val2, errorStr) {
-  assert(new BN(val1).should.be.a.bignumber.that.is.most(new BN(val2)), errorStr);
-}
-
 module.exports.assertGreater = function(val1, val2, errorStr) {
     assert(new BN(val1).should.be.a.bignumber.that.is.greaterThan(new BN(val2)), errorStr);
 }
 
 module.exports.assertGreaterOrEqual = function (val1, val2) {
   assert(new BN(val1).should.be.a.bignumber.that.is.least(new BN(val2)));
+}
+
+module.exports.assertLessOrEqual = function (val1, val2, errorStr) {
+  assert(new BN(val1).should.be.a.bignumber.that.is.most(new BN(val2)), errorStr);
 }
 
 module.exports.assertLesser = function(val1, val2, errorStr) {

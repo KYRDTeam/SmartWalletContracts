@@ -36,10 +36,10 @@ INFURA_API_KEY=********************************
 
 ### Example Commands
 - `yarn test` (Runs all tests)
-- `./tst.sh -f ./test/smartWalletSwapKyberUni.js` (Test only kyberReserve.js)
+- `./tst.sh -f ./test/swapAndDepositTests.js` (Test only kyberReserve.js)
 
 ### Example
-`yarn buidler test --no-compile ./test/smartWalletSwapKyberUni.js`
+`yarn buidler test --no-compile ./test/swapAndDepositTests.js`
 
 ### Coverage with `buidler-coverage`
 - Run `yarn coverage` for coverage on files
