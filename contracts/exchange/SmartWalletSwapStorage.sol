@@ -35,7 +35,8 @@ contract SmartWalletSwapStorage is Utils, Withdrawable, ReentrancyGuard {
 
     ISmartWalletLending public lendingImpl;
 
-    address public implementation;
+    // bytes32(uint256(keccak256("SmartWalletSwapImplementation")) - 1)
+    bytes32 internal constant IMPLEMENTATION = 0x6a7efb0627ddb0e69b773958c7c9c3c9c3dc049819cdf56a8ee84c3074b2a5d7;
 
     constructor(address _admin) public Withdrawable(_admin) {}
 }

@@ -6,11 +6,10 @@ import "../interfaces/IComptroller.sol";
 import "./ISmartWalletLending.sol";
 import "@kyber.network/utils-sc/contracts/Utils.sol";
 import "@kyber.network/utils-sc/contracts/Withdrawable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 
-contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, ReentrancyGuard {
+contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable {
     using SafeERC20 for IERC20Ext;
     using SafeMath for uint256;
 
@@ -111,6 +110,18 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
             }
         }
 
+        // do token approvals
+        if (lendingPoolCoreV1 != address(0)) {
+            for (uint256 j = 0; j < aTokensV1.length; j++) {
+                safeApproveAllowance(lendingPoolCoreV1, tokens[j]);
+            }
+        }
+        if (poolV2 != IAaveLendingPoolV2(0)) {
+            for (uint256 j = 0; j < aTokensV1.length; j++) {
+                safeApproveAllowance(address(poolV2), tokens[j]);
+            }
+        }
+
         emit UpdatedAaveLendingPool(
             poolV2,
             provider,
@@ -144,6 +155,9 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
                 tokens[i] = IERC20Ext(ICompErc20(_cTokens[i]).underlying());
                 require(tokens[i] != IERC20Ext(0), "invalid underlying token");
                 compoundData.cTokens[tokens[i]] = _cTokens[i];
+
+                // do token approvals
+                safeApproveAllowance(_cTokens[i], tokens[i]);
             }
             emit UpdatedCompoudData(_comptroller, _cEth, _cTokens, tokens);
         } else {
@@ -162,6 +176,9 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
                 require(tokens[i] != IERC20Ext(0), "invalid underlying token");
                 cTokens[i] = address(markets[i]);
                 compoundData.cTokens[tokens[i]] = cTokens[i];
+
+                // do token approvals
+                safeApproveAllowance(_cTokens[i], tokens[i]);
             }
             emit UpdatedCompoudData(_comptroller, _cEth, cTokens, tokens);
         }
@@ -178,13 +195,9 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         require(getBalance(token, address(this)) >= amount, "low balance");
         if (platform == LendingPlatform.AAVE_V1) {
             IAaveLendingPoolV1 poolV1 = aaveLendingPool.lendingPoolV1;
-            address lendingPoolCoreV1 = aaveLendingPool.lendingPoolCoreV1;
             IERC20Ext aToken = IERC20Ext(aaveLendingPool.aTokensV1[token]);
             require(aToken != IERC20Ext(0), "aToken not found");
-            // approve allowance if needed
-            if (token != ETH_TOKEN_ADDRESS) {
-                safeApproveAllowance(address(lendingPoolCoreV1), token);
-            }
+
             // deposit and compute received aToken amount
             uint256 aTokenBalanceBefore = aToken.balanceOf(address(this));
             poolV1.deposit{value: token == ETH_TOKEN_ADDRESS ? amount : 0}(
@@ -201,11 +214,9 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
                 IWeth weth = aaveLendingPool.weth;
                 IAaveLendingPoolV2 pool = aaveLendingPool.lendingPoolV2;
                 weth.deposit{value: amount}();
-                safeApproveAllowance(address(pool), weth);
                 pool.deposit(address(weth), amount, onBehalfOf, aaveLendingPool.referalCode);
             } else {
                 IAaveLendingPoolV2 pool = aaveLendingPool.lendingPoolV2;
-                safeApproveAllowance(address(pool), token);
                 pool.deposit(address(token), amount, onBehalfOf, aaveLendingPool.referalCode);
             }
         } else {
@@ -216,7 +227,6 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
             if (token == ETH_TOKEN_ADDRESS) {
                 ICompEth(cToken).mint{value: amount}();
             } else {
-                safeApproveAllowance(cToken, token);
                 require(ICompErc20(cToken).mint(amount) == 0, "can not mint cToken");
             }
             uint256 cTokenBalanceAfter = IERC20Ext(cToken).balanceOf(address(this));
@@ -341,10 +351,7 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
         }
         if (platform == LendingPlatform.AAVE_V1) {
             IAaveLendingPoolV1 poolV1 = aaveLendingPool.lendingPoolV1;
-            // approve if needed
-            if (token != ETH_TOKEN_ADDRESS) {
-                safeApproveAllowance(address(poolV1), token);
-            }
+
             poolV1.repay{value: token == ETH_TOKEN_ADDRESS ? payAmount : 0}(
                 address(token),
                 payAmount,
@@ -355,10 +362,8 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
             if (token == ETH_TOKEN_ADDRESS) {
                 IWeth weth = aaveLendingPool.weth;
                 weth.deposit{value: payAmount}();
-                safeApproveAllowance(address(poolV2), weth);
                 poolV2.repay(address(weth), payAmount, rateMode, onBehalfOf);
             } else {
-                safeApproveAllowance(address(poolV2), token);
                 poolV2.repay(address(token), payAmount, rateMode, onBehalfOf);
             }
         } else {
@@ -368,8 +373,7 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
             if (token == ETH_TOKEN_ADDRESS) {
                 ICompEth(cToken).repayBorrowBehalf{value: payAmount}(onBehalfOf);
             } else {
-                safeApproveAllowance(cToken, token);
-                ICompErc20(cToken).repayBorrowBehalf(onBehalfOf, payAmount);
+                require(ICompErc20(cToken).repayBorrowBehalf(onBehalfOf, payAmount) == 0, "compound repay error");
             }
         }
     }

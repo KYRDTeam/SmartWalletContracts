@@ -49,7 +49,7 @@ interface ISmartWalletLending {
     ) external;
 
     function updateCompoundData(
-        address _comToken,
+        address _comptroller,
         address _cEth,
         address[] calldata _cTokens
     ) external;

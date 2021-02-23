@@ -15,15 +15,15 @@ interface IFetchAaveDataWrapper {
     }
 
     struct ReserveData {
-        uint256 totalLiquidity;
         uint256 availableLiquidity;
-        uint256 liquidityRate;
-        uint256 utilizationRate;
         uint256 totalBorrowsStable;
         uint256 totalBorrowsVariable;
+        uint256 liquidityRate;
         uint256 variableBorrowRate;
         uint256 stableBorrowRate;
         uint256 averageStableBorrowRate;
+        uint256 totalLiquidity;
+        uint256 utilizationRate;
     }
 
     struct UserAccountData {
