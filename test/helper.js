@@ -10,8 +10,12 @@ const BPS = new BN(10000);
 const precisionUnits = (new BN(10).pow(new BN(18)));
 const ethDecimals = new BN(18);
 const ethAddress = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+const wethAddress = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
 const usdtAddress = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
+const usdcAddress = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
+const daiAddress = '0x6b175474e89094c44da98b954eedeac495271d0f';
 const uniswapRouter = '0x7a250d5630b4cf539739df2c5dacb4c659f2488d';
+const sushiswapRouter = '0xd9e1ce17f2641f24ae83637ab66a2cca9c378b9f';
 const aEthV2Address = '0x030bA81f1c18d280636F32af80b9AAd02Cf0854e';
 const aUsdtV1Address = '0x71fc860f7d3a592a4a98740e39db31d25db65ae8';
 const aUsdtV2Address = '0x3ed3b47dd13ec9a98b44e6204a523e766b225811';
@@ -26,9 +30,9 @@ const MAX_RATE = precisionUnits.mul(new BN(10).pow(new BN(7)));
 const MAX_ALLOWANCE = ((new BN(2)).pow(new BN(256))).sub(new BN(1));
 const lendingPlatforms = [0, 1, 2];
 
-module.exports = {BPS, precisionUnits, ethDecimals, ethAddress, zeroAddress, uniswapRouter,
+module.exports = {BPS, precisionUnits, ethDecimals, ethAddress, zeroAddress, uniswapRouter, wethAddress,
   lendingPlatforms, usdtAddress, emptyHint, zeroBN, MAX_QTY, MAX_RATE, MAX_ALLOWANCE, aUsdtV1Address, aUsdtV2Address,
-  cUsdtAddress, comptroller, cEthAddress, aEthV2Address};
+  cUsdtAddress, comptroller, cEthAddress, aEthV2Address, daiAddress, sushiswapRouter, usdcAddress};
 
 module.exports.isRevertErrorMessageContains = function(error, msg) {
     return (error.message.search(msg) >= 0);

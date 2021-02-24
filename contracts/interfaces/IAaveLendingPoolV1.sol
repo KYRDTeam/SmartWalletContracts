@@ -16,6 +16,7 @@ interface IAaveLendingPoolV1 {
         external
         payable;
     function core() external view returns (address);
+    function setUserUseReserveAsCollateral(address _reserve, bool _useAsCollateral) external;
 }
 
 interface IAToken {

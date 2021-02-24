@@ -1,4 +1,11 @@
 const AaveLendingPoolV1 = artifacts.require('IAaveLendingPoolV1.sol');
+const IERC20Ext = artifacts.require('@kyber.network/utils-sc/contracts/IERC20Ext.sol');
+const SmartWalletSwapImplementation = artifacts.require('SmartWalletSwapImplementation.sol');
+const SmartWalletSwapProxy = artifacts.require('SmartWalletSwapProxy.sol');
+const SmartWalletLending = artifacts.require('SmartWalletLending.sol');
+const BurnGasHelper = artifacts.require('BurnGasHelper.sol');
+const GasToken = artifacts.require('IGasToken.sol');
+const BN = web3.utils.BN;
 
 const {
   ethAddress,
@@ -23,16 +30,7 @@ const aavePoolV2Address = '0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9';
 const aavePoolCoreV1Address = '0x3dfd23A6c5E8BbcFc9581d2E864a68feb6a076d3';
 const aEthV1Address = '0x3a3a65aab0dd2a17e3f1947ba16138cd37d08c04';
 
-module.exports.setupBeforeTest = async (
-  accounts,
-  IERC20Ext,
-  GasToken,
-  SmartWalletSwapImplementation,
-  BurnGasHelper,
-  SmartWalletLending,
-  SmartWalletSwapProxy,
-  BN
-) => {
+module.exports.setupBeforeTest = async (accounts) => {
   let user = accounts[0];
   let admin = accounts[0];
   let burnGasHelper = await BurnGasHelper.new(admin, gasTokenAddress);
@@ -77,7 +75,7 @@ module.exports.setupBeforeTest = async (
   const lendingEthTokensByPlatform = [aEthV1Token, aEthV2Token, cEthToken];
 
   let tokenAddresses = [
-    gasTokenAddress, usdtAddress, usdcAddress, daiAddress, aEthV1Address,
+    gasTokenAddress, usdtAddress, usdcAddress, daiAddress, aEthV1Address, daiAddress,
     aEthV2Address, aUsdtV1Address, aUsdtV2Address, cUsdtAddress, cEthAddress
   ];
 

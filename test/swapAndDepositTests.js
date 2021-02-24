@@ -1,13 +1,5 @@
-const IERC20Ext = artifacts.require('@kyber.network/utils-sc/contracts/IERC20Ext.sol');
-const SmartWalletSwapImplementation = artifacts.require('SmartWalletSwapImplementation.sol');
-const SmartWalletSwapProxy = artifacts.require('SmartWalletSwapProxy.sol');
-const SmartWalletLending = artifacts.require('SmartWalletLending.sol');
-const BurnGasHelper = artifacts.require('BurnGasHelper.sol');
-const GasToken = artifacts.require('IGasToken.sol');
-
-const BN = web3.utils.BN;
-
 const { expectEvent } = require('@openzeppelin/test-helpers');
+const BN = web3.utils.BN;
 
 const {
   emptyHint,
@@ -41,16 +33,7 @@ let lendingEthTokensByPlatform;
 
 contract('SmartWalletSwapImplementation', accounts => {
   before('setup testing environment', async () => {
-    const result = await setupBeforeTest(
-      accounts,
-      IERC20Ext,
-      GasToken,
-      SmartWalletSwapImplementation,
-      BurnGasHelper,
-      SmartWalletLending,
-      SmartWalletSwapProxy,
-      BN
-    )
+    const result = await setupBeforeTest(accounts)
 
     user = result.user;
     lending = result.lending;
@@ -112,9 +95,8 @@ contract('SmartWalletSwapImplementation', accounts => {
     });
 
     it('should swap ETH to token and deposit token to AAVE v1 + v2 + Compound, and then be able to withdraw from it', async () => {
-      const depositToken = { symbol: 'USDT', address: usdtAddress }
       const srcAmount = new BN(5).pow(ethDecimals);
-      const swapTradePath = [ethAddress, depositToken.address];
+      const swapTradePath = [ethAddress, usdtAddress];
 
       for (let i = 0; i < lendingPlatforms.length; i++) {
         const usdtToken = lendingUsdtTokensByPlatform[i];
