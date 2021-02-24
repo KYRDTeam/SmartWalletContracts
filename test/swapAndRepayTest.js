@@ -3,10 +3,11 @@ const BN = web3.utils.BN;
 const {
   emptyHint,
   ethAddress,
-  daiAddress,
   ethDecimals,
   uniswapRouter,
   assertTxSuccess,
+  lendingPlatforms,
+  daiAddress
 } = require('./helper');
 
 const {
@@ -15,9 +16,12 @@ const {
 } = require('./setupTestingEnvironment');
 
 let aaveV1Pool;
+let aaveV2Pool;
+let compoundPool;
 let swapProxy;
 let user;
 let gasToken;
+let cDaiToken;
 
 contract('SmartWalletSwapImplementation', accounts => {
   before('setup testing environment', async () => {
@@ -27,6 +31,9 @@ contract('SmartWalletSwapImplementation', accounts => {
     swapProxy = result.swapProxy;
     gasToken = result.gasToken;
     aaveV1Pool = result.aaveV1Pool;
+    aaveV2Pool = result.aaveV1Pool;
+    compoundPool = result.compoundPool;
+    cDaiToken = result.cDaiToken;
   });
 
   beforeEach('mint gas token and transfer to user', async () => {
@@ -35,32 +42,48 @@ contract('SmartWalletSwapImplementation', accounts => {
 
   describe('test swap and repay', async () => {
     it('should be able to repay the debt through Kyber swap', async () => {
-      const srcAmount = new BN(10).pow(ethDecimals);
-      const swapTradePath = [ethAddress];
+      const ethAmount = new BN(10).pow(ethDecimals);
       const borrowAmount = new BN(10).pow(new BN(18));
+      const swapTradePath = [ethAddress];
+      const lendingPools = [aaveV1Pool, aaveV2Pool, compoundPool]
 
-      /** Deposit ETH **/
-      await swapProxy.swapUniswapAndDeposit(
-        0, uniswapRouter, srcAmount, 0, swapTradePath, 8, user, false,
-        { from: user, value: srcAmount }
-      );
+      for (let i = 0; i < lendingPlatforms.length; i++) {
+        console.log(i);
+        const lendingPool = lendingPools[i];
 
-      /** Enable ETH as collateral **/
-      await aaveV1Pool.setUserUseReserveAsCollateral(ethAddress, true);
+        /** Deposit ETH **/
+        await swapProxy.swapUniswapAndDeposit(
+          i, uniswapRouter, ethAmount, 0, swapTradePath, 8, user, false,
+          { from: user, value: ethAmount }
+        );
 
-      /** Borrow DAI **/
-      await aaveV1Pool.borrow(
-        daiAddress, borrowAmount, 1, 0,
-        { from: user }
-      );
+        if (i === 0) {
+          /** Enable ETH as collateral **/
+          await lendingPool.setUserUseReserveAsCollateral(ethAddress, true);
+        }
 
-      /** Repay DAI **/
-      const tx = await swapProxy.swapKyberAndRepay(
-        0, daiAddress, daiAddress, borrowAmount, borrowAmount, 0, user, emptyHint, false,
-        { from: user }
-      );
+        if (i === 0 || i === 1) {
+          /** Borrow **/
+          await lendingPool.borrow(
+            daiAddress, borrowAmount, 1, 0,
+            { from: user }
+          );
+        } else {
+          /** Enable ETH as collateral **/
+          await lendingPool.enterMarkets(ethAddress);
 
-      assertTxSuccess(tx);
+          /** Borrow **/
+          await cDaiToken.borrow(borrowAmount, { from: user });
+        }
+
+        /** Repay **/
+        const tx = await swapProxy.swapKyberAndRepay(
+          i, daiAddress, daiAddress, borrowAmount, borrowAmount, 8, user, emptyHint, false,
+          { from: user }
+        );
+
+        assertTxSuccess(tx);
+      }
     });
   })
 });

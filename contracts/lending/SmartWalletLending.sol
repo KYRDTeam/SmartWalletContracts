@@ -296,7 +296,7 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable, Reentra
             IAaveLendingPoolV1 poolV1 = aaveLendingPool.lendingPoolV1;
             // approve if needed
             if (token != ETH_TOKEN_ADDRESS) {
-                safeApproveAllowance(address(poolV1), token);
+                safeApproveAllowance(address(aaveLendingPool.lendingPoolCoreV1), token);
             }
             poolV1.repay{ value: token == ETH_TOKEN_ADDRESS ? payAmount : 0 }(
                 address(token), payAmount, onBehalfOf

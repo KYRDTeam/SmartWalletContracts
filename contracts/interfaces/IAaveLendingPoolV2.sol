@@ -92,4 +92,11 @@ interface IAaveLendingPoolV2 {
     external
     view
     returns (DataTypes.ReserveData memory);
+
+  /**
+   * @dev Allows depositors to enable/disable a specific deposited asset as collateral
+   * @param asset The address of the underlying asset deposited
+   * @param useAsCollateral `true` if the user wants to use the deposit as collateral, `false` otherwise
+   **/
+  function setUserUseReserveAsCollateral(address asset, bool useAsCollateral) external;
 }

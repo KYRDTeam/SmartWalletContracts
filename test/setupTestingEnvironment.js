@@ -1,4 +1,6 @@
 const AaveLendingPoolV1 = artifacts.require('IAaveLendingPoolV1.sol');
+const AaveLendingPoolV2 = artifacts.require('IAaveLendingPoolV2.sol');
+const CompoundPool = artifacts.require('IComptroller.sol');
 const IERC20Ext = artifacts.require('@kyber.network/utils-sc/contracts/IERC20Ext.sol');
 const SmartWalletSwapImplementation = artifacts.require('SmartWalletSwapImplementation.sol');
 const SmartWalletSwapProxy = artifacts.require('SmartWalletSwapProxy.sol');
@@ -16,7 +18,8 @@ const {
   cUsdtAddress,
   comptroller,
   cEthAddress,
-  aEthV2Address
+  aEthV2Address,
+  cDaiAddress
 } = require('./helper');
 
 const gasTokenAddress = '0x0000000000b3F879cb30FE243b4Dfee438691c04';
@@ -63,6 +66,8 @@ module.exports.setupBeforeTest = async (accounts) => {
   await lending.updateCompoundData(comptroller, cEthAddress, [cUsdtAddress], { from: admin });
 
   let aaveV1Pool = await AaveLendingPoolV1.at(aavePoolV1Address);
+  let aaveV2Pool = await AaveLendingPoolV2.at(aavePoolV2Address);
+  let compoundPool = await CompoundPool.at(comptroller);
   let gasToken = await GasToken.at(gasTokenAddress);
   let aEthV1Token = await IERC20Ext.at(aEthV1Address);
   let aEthV2Token = await IERC20Ext.at(aEthV2Address);
@@ -70,6 +75,7 @@ module.exports.setupBeforeTest = async (accounts) => {
   let aUsdtV2Token = await IERC20Ext.at(aUsdtV2Address);
   let cEthToken = await IERC20Ext.at(cEthAddress);
   let cUsdtToken = await IERC20Ext.at(cUsdtAddress);
+  let cDaiToken = await IERC20Ext.at(cDaiAddress);
 
   const lendingUsdtTokensByPlatform = [aUsdtV1Token, aUsdtV2Token, cUsdtToken];
   const lendingEthTokensByPlatform = [aEthV1Token, aEthV2Token, cEthToken];
@@ -87,7 +93,8 @@ module.exports.setupBeforeTest = async (accounts) => {
   swapProxy = await SmartWalletSwapImplementation.at(swapProxy.address);
 
   return { user, lending, swapImplementation, swapProxy, burnGasHelper, gasToken, aEthV1Token, aUsdtV1Token,
-    aUsdtV2Token, cUsdtToken, lendingUsdtTokensByPlatform, aEthV2Token, lendingEthTokensByPlatform, aaveV1Pool }
+    aUsdtV2Token, cUsdtToken, lendingUsdtTokensByPlatform, aEthV2Token, lendingEthTokensByPlatform, aaveV1Pool,
+    aaveV2Pool, compoundPool, cDaiToken }
 }
 
 module.exports.setupBeforeEachTest = async (gasToken, user) => {

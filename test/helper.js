@@ -20,6 +20,7 @@ const aEthV2Address = '0x030bA81f1c18d280636F32af80b9AAd02Cf0854e';
 const aUsdtV1Address = '0x71fc860f7d3a592a4a98740e39db31d25db65ae8';
 const aUsdtV2Address = '0x3ed3b47dd13ec9a98b44e6204a523e766b225811';
 const cUsdtAddress = '0xf650c3d88d12db855b8bf7d11be6c55a4e07dcc9';
+const cDaiAddress = '0x5d3a536e4d6dbd6114cc1ead35777bab948e3643';
 const comptroller = '0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b';
 const cEthAddress = '0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5';
 const zeroAddress = constants.ZERO_ADDRESS;
@@ -32,7 +33,7 @@ const lendingPlatforms = [0, 1, 2];
 
 module.exports = {BPS, precisionUnits, ethDecimals, ethAddress, zeroAddress, uniswapRouter, wethAddress,
   lendingPlatforms, usdtAddress, emptyHint, zeroBN, MAX_QTY, MAX_RATE, MAX_ALLOWANCE, aUsdtV1Address, aUsdtV2Address,
-  cUsdtAddress, comptroller, cEthAddress, aEthV2Address, daiAddress, sushiswapRouter, usdcAddress};
+  cUsdtAddress, comptroller, cEthAddress, aEthV2Address, daiAddress, sushiswapRouter, usdcAddress, cDaiAddress};
 
 module.exports.isRevertErrorMessageContains = function(error, msg) {
     return (error.message.search(msg) >= 0);
