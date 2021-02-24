@@ -146,18 +146,16 @@ contract('SmartWalletSwapImplementation', accounts => {
     });
 
     it('should swap token to ETH and deposit ETH to AAVE v1 + v2 + Compound', async () => {
-      const inputToken = { symbol: 'USDT', address: usdtAddress }
-
       /** Swap ETH to token for testing **/
       const ethAmount = new BN(10).pow(ethDecimals);
-      const tradePath = [ethAddress, inputToken.address];
+      const tradePath = [ethAddress, usdtAddress];
       await swapProxy.swapUniswap(
         uniswapRouter, ethAmount, 0, tradePath, user, 8, user, true, false, { from: user, value: ethAmount }
       );
 
       /** Swap token to ETH and deposit **/
-      const srcAmount = new BN(5).pow(new BN(6));
-      const swapTradePath = [inputToken.address, ethAddress];
+      const srcAmount = new BN(10).pow(new BN(6));
+      const swapTradePath = [usdtAddress, ethAddress];
 
       for (let i = 0; i < lendingPlatforms.length; i++) {
         const ethToken = lendingEthTokensByPlatform[i];
@@ -171,9 +169,14 @@ contract('SmartWalletSwapImplementation', accounts => {
         const destAmount = tx.logs[0].args.destAmount;
         const aTokenBalance = await ethToken.balanceOf(user);
 
-        assertGreaterOrEqual(aTokenBalance, destAmount);
+        if (i === 2) {
+          /** cToken is not peg 1-1 to deposited token **/
+          assertGreaterOrEqual(aTokenBalance, 0);
+        } else {
+          assertGreaterOrEqual(aTokenBalance, destAmount);
+        }
 
-        /** WIP: Test withdraw ETH from AAVE v2 **/
+        /** Test withdraw ETH from AAVE v2 **/
         if (i === 1) {
           const withdrawReceipt = await swapProxy.withdrawFromLendingPlatform(
             i, ethAddress, aTokenBalance, 0, false,
