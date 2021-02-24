@@ -1,3 +1,4 @@
+const IERC20Ext = artifacts.require('@kyber.network/utils-sc/contracts/IERC20Ext.sol');
 const BN = web3.utils.BN;
 
 const {
