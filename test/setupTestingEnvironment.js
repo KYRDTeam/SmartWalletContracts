@@ -1,6 +1,7 @@
 const AaveLendingPoolV1 = artifacts.require('IAaveLendingPoolV1.sol');
 const AaveLendingPoolV2 = artifacts.require('IAaveLendingPoolV2.sol');
 const CompoundPool = artifacts.require('IComptroller.sol');
+const ICompErc20 = artifacts.require('ICompErc20.sol');
 const IERC20Ext = artifacts.require('@kyber.network/utils-sc/contracts/IERC20Ext.sol');
 const SmartWalletSwapImplementation = artifacts.require('SmartWalletSwapImplementation.sol');
 const SmartWalletSwapProxy = artifacts.require('SmartWalletSwapProxy.sol');
@@ -63,7 +64,7 @@ module.exports.setupBeforeTest = async (accounts) => {
     weth,
     [ethAddress, usdtAddress], { from: admin }
   );
-  await lending.updateCompoundData(comptroller, cEthAddress, [cUsdtAddress], { from: admin });
+  await lending.updateCompoundData(comptroller, cEthAddress, [cUsdtAddress, cDaiAddress], { from: admin });
 
   let aaveV1Pool = await AaveLendingPoolV1.at(aavePoolV1Address);
   let aaveV2Pool = await AaveLendingPoolV2.at(aavePoolV2Address);
@@ -75,7 +76,12 @@ module.exports.setupBeforeTest = async (accounts) => {
   let aUsdtV2Token = await IERC20Ext.at(aUsdtV2Address);
   let cEthToken = await IERC20Ext.at(cEthAddress);
   let cUsdtToken = await IERC20Ext.at(cUsdtAddress);
-  let cDaiToken = await IERC20Ext.at(cDaiAddress);
+  let cDaiToken = await ICompErc20.at(cDaiAddress);
+
+  await gasToken.mint(100);
+  await gasToken.mint(100);
+  await gasToken.mint(100);
+  await gasToken.transfer(user, 300);
 
   const lendingUsdtTokensByPlatform = [aUsdtV1Token, aUsdtV2Token, cUsdtToken];
   const lendingEthTokensByPlatform = [aEthV1Token, aEthV2Token, cEthToken];

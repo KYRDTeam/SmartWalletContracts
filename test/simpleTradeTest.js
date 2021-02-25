@@ -9,13 +9,11 @@ const {
   sushiswapRouter,
   usdtAddress,
   usdcAddress,
-  daiAddress,
   wethAddress
 } = require('./helper');
 
 const {
-  setupBeforeTest,
-  setupBeforeEachTest
+  setupBeforeTest
 } = require('./setupTestingEnvironment');
 
 let swapProxy;
@@ -31,14 +29,10 @@ contract('SmartWalletSwapImplementation', accounts => {
     gasToken = result.gasToken;
   });
 
-  beforeEach('mint gas token and transfer to user', async () => {
-    await setupBeforeEachTest(gasToken, user);
-  });
-
   describe('test some simple trades', async () => {
     it('trade e2t on kyber', async () => {
-      let tokenNames = ["USDT", "USDC", "DAI"];
-      let tokenAddresses = [usdtAddress, usdcAddress, daiAddress];
+      let tokenNames = ["USDT", "USDC"];
+      let tokenAddresses = [usdtAddress, usdcAddress];
       let ethAmount = new BN(10).pow(new BN(ethDecimals)); // one eth
       for (let i = 0; i < tokenAddresses.length; i++) {
         let token = tokenAddresses[i];
@@ -65,8 +59,8 @@ contract('SmartWalletSwapImplementation', accounts => {
     });
 
     it('trade e2t on Uniswap', async () => {
-      let tokenNames = ["USDT", "USDC", "DAI"];
-      let tokenAddresses = [usdtAddress, usdcAddress, daiAddress];
+      let tokenNames = ["USDT", "USDC"];
+      let tokenAddresses = [usdtAddress, usdcAddress];
       let routers = [uniswapRouter, sushiswapRouter];
       let routerNames = ["Uniswap", "Sushiswap"];
       let ethAmount = new BN(10).pow(new BN(ethDecimals)); // one eth
@@ -94,8 +88,8 @@ contract('SmartWalletSwapImplementation', accounts => {
     });
 
     it('trade t2e on kyber', async () => {
-      let tokenNames = ["USDT", "USDC", "DAI"];
-      let tokenAddresses = [usdtAddress, usdcAddress, daiAddress];
+      let tokenNames = ["USDT", "USDC"];
+      let tokenAddresses = [usdtAddress, usdcAddress];
       for (let i = 0; i < tokenAddresses.length; i++) {
         let token = await IERC20Ext.at(tokenAddresses[i]);
         let tokenAmount = (await token.balanceOf(user)).div(new BN(5));
@@ -114,8 +108,8 @@ contract('SmartWalletSwapImplementation', accounts => {
     });
 
     it('trade t2e on Uniswap', async () => {
-      let tokenNames = ["USDT", "USDC", "DAI"];
-      let tokenAddresses = [usdtAddress, usdcAddress, daiAddress];
+      let tokenNames = ["USDT", "USDC"];
+      let tokenAddresses = [usdtAddress, usdcAddress];
       let routers = [uniswapRouter, sushiswapRouter];
       let routerNames = ["Uniswap", "Sushiswap"];
       for (let i = 0; i < routers.length; i++) {

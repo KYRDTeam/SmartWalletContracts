@@ -15,7 +15,6 @@ const {
 
 const {
   setupBeforeTest,
-  setupBeforeEachTest
 } = require('./setupTestingEnvironment');
 
 let lending;
@@ -49,12 +48,8 @@ contract('SmartWalletSwapImplementation', accounts => {
     lendingEthTokensByPlatform = result.lendingEthTokensByPlatform;
   });
 
-  beforeEach('mint gas token and transfer to user', async () => {
-    await setupBeforeEachTest(gasToken, user);
-  });
-
   describe('test swapUniswapAndDeposit', async () => {
-    it('should burn gas token and reduce gas used', async () => {
+    /*it('should burn gas token and reduce gas used', async () => {
       const srcAmount = new BN(5).pow(ethDecimals);
       const swapTradePath = [ethAddress];
       const gasTokenBalanceBefore = await gasToken.balanceOf(user);
@@ -73,7 +68,7 @@ contract('SmartWalletSwapImplementation', accounts => {
 
       assertLesser(txWithoutGasToken.receipt.gasUsed, txWithGasToken.receipt.gasUsed, '');
       assertLesser(gasTokenBalanceAfter, gasTokenBalanceBefore, '');
-    });
+    });*/
 
     it('should take fee and directly deposit ETH to AAVE v1 + v2 + Compound', async () => {
       const bps = 8;
@@ -176,7 +171,7 @@ contract('SmartWalletSwapImplementation', accounts => {
   });
 
   describe('test swapKyberAndDeposit', async () => {
-    it('should burn gas token and reduce gas used', async () => {
+    /*it('should burn gas token and reduce gas used', async () => {
       const srcAmount = new BN(5).pow(ethDecimals);
       const gasTokenBalanceBefore = await gasToken.balanceOf(user);
 
@@ -194,7 +189,7 @@ contract('SmartWalletSwapImplementation', accounts => {
 
       assertLesser(txWithoutGasToken.receipt.gasUsed, txWithGasToken.receipt.gasUsed, '');
       assertLesser(gasTokenBalanceAfter, gasTokenBalanceBefore, '');
-    });
+    });*/
 
     it('should take fee and directly deposit ETH to AAVE v1', async () => {
       const bps = 8;
