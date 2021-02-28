@@ -11,8 +11,6 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     using SafeMath for uint256;
 
     event UpdatedSupportedPlatformWallets(address[] wallets, bool isSupported);
-    event UpdateKyberProxy(IKyberProxy indexed newProxy);
-    event UpdateUniswapRouters(IUniswapV2Router02[] indexed uniswapRouters, bool[] isAdded);
     event UpdatedBurnGasHelper(IBurnGasHelper indexed gasHelper);
     event UpdatedLendingImplementation(ISmartWalletLending impl);
     event ApprovedAllowances(IERC20Ext[] tokens, address[] spenders, bool isReset);
@@ -27,27 +25,6 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             burnGasHelper = _burnGasHelper;
             emit UpdatedBurnGasHelper(_burnGasHelper);
         }
-    }
-
-    function updateKyberProxy(IKyberProxy _proxy) external onlyAdmin {
-        require(address(_proxy) != address(0), "zero address");
-        kyberProxy = _proxy;
-
-        emit UpdateKyberProxy(_proxy);
-    }
-
-    function updateUniswapRouters(IUniswapV2Router02[] calldata _routers, bool[] calldata _isAdded)
-        external
-        onlyAdmin
-    {
-        require(_routers.length == _isAdded.length, "array length mismatch");
-
-        for (uint256 i = 0; i < _routers.length; i++) {
-            require(address(_routers[i]) != address(0), "zero address");
-            isRouterSupported[_routers[i]] = _isAdded[i];
-        }
-
-        emit UpdateUniswapRouters(_routers, _isAdded);
     }
 
     function updateLendingImplementation(ISmartWalletLending newImpl) external onlyAdmin {
@@ -815,7 +792,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         uint256 gasAfter = gasleft();
 
         try
-            burnGasHelper.getAmountGasTokensToBurn(gasBefore.sub(gasAfter) + 16 * msg.data.length)
+            burnGasHelper.getAmountGasTokensToBurn(gasBefore.sub(gasAfter))
         returns (uint256 _gasBurns, address _gasToken) {
             numGasBurns = _gasBurns;
             gasToken = IGasToken(_gasToken);
