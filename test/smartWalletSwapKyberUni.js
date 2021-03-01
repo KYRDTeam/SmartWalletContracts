@@ -1,6 +1,5 @@
 const IERC20Ext = artifacts.require('@kyber.network/utils-sc/contracts/IERC20Ext.sol');
 const SmartWalletSwapImplementation = artifacts.require('SmartWalletSwapImplementation.sol');
-const SmartWalletSwapImplementation2 = artifacts.require('SmartWalletSwapImplementation2.sol');
 const SmartWalletSwapProxy = artifacts.require('SmartWalletSwapProxy.sol');
 const SmartWalletLending = artifacts.require('SmartWalletLending.sol');
 const BurnGasHelper = artifacts.require('BurnGasHelper.sol');

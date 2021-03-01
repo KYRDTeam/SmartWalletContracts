@@ -11,8 +11,6 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
     using SafeMath for uint256;
 
     event UpdatedSupportedPlatformWallets(address[] wallets, bool isSupported);
-    event UpdateKyberProxy(IKyberProxy indexed newProxy);
-    event UpdateUniswapRouters(IUniswapV2Router02[] indexed uniswapRouters, bool[] isAdded);
     event UpdatedBurnGasHelper(IBurnGasHelper indexed gasHelper);
     event UpdatedLendingImplementation(ISmartWalletLending impl);
     event ApprovedAllowances(IERC20Ext[] tokens, address[] spenders, bool isReset);
@@ -27,27 +25,6 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             burnGasHelper = _burnGasHelper;
             emit UpdatedBurnGasHelper(_burnGasHelper);
         }
-    }
-
-    function updateKyberProxy(IKyberProxy _proxy) external onlyAdmin {
-        require(address(_proxy) != address(0), "zero address");
-        kyberProxy = _proxy;
-
-        emit UpdateKyberProxy(_proxy);
-    }
-
-    function updateUniswapRouters(IUniswapV2Router02[] calldata _routers, bool[] calldata _isAdded)
-        external
-        onlyAdmin
-    {
-        require(_routers.length == _isAdded.length, "array length mismatch");
-
-        for (uint256 i = 0; i < _routers.length; i++) {
-            require(address(_routers[i]) != address(0), "zero address");
-            isRouterSupported[_routers[i]] = _isAdded[i];
-        }
-
-        emit UpdateUniswapRouters(_routers, _isAdded);
     }
 
     function updateLendingImplementation(ISmartWalletLending newImpl) external onlyAdmin {
@@ -328,38 +305,6 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         );
     }
 
-    /// @dev borrow token from Lending platforms (AAVE, COMPOUND)
-    /// @param platform platform to borrow token
-    /// @param token underlying token to borrow, e.g ETH, USDT, DAI
-    /// @param borrowAmount amount of cToken (COMPOUND) or aToken (AAVE) to borrow
-    /// @param interestRateMode stable or variable rate mode
-    /// @param useGasToken whether to use gas token or not
-    function borrowFromLendingPlatform(
-        ISmartWalletLending.LendingPlatform platform,
-        IERC20Ext token,
-        uint256 borrowAmount,
-        uint256 interestRateMode,
-        bool useGasToken
-    ) external override nonReentrant {
-        require(lendingImpl != ISmartWalletLending(0));
-        uint256 gasBefore = useGasToken ? gasleft() : 0;
-
-        lendingImpl.borrowFrom(platform, msg.sender, token, borrowAmount, interestRateMode);
-
-        uint256 numGasBurns;
-        if (useGasToken) {
-            numGasBurns = burnGasTokensAfter(gasBefore);
-        }
-        emit BorrowFromLending(
-            platform,
-            token,
-            borrowAmount,
-            interestRateMode,
-            useGasToken,
-            numGasBurns
-        );
-    }
-
     /// @dev withdraw token from Lending platforms (AAVE, COMPOUND)
     /// @param platform platform to withdraw token
     /// @param token underlying token to withdraw, e.g ETH, USDT, DAI
@@ -431,16 +376,17 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             uint256 gasBefore = useGasToken ? gasleft() : 0;
 
             {
+                // use user debt value if debt is <= payAmount,
+                // user can pay all debt by putting really high payAmount as param
+                payAmount = checkUserDebt(platform, address(dest), payAmount);
                 if (src == dest) {
-                    // just collect src token, no need to swap
-                    destAmount = safeForwardTokenAndCollectFee(
-                        src,
-                        msg.sender,
-                        payable(address(lendingImpl)),
-                        srcAmount,
-                        0, // no fee if repay directly
-                        platformWallet
-                    );
+                    if (src == ETH_TOKEN_ADDRESS) {
+                        require(msg.value >= srcAmount, "invalid msg value");
+                        transferToken(payable(address(lendingImpl)), src, srcAmount);
+                    } else {
+                        destAmount = srcAmount > payAmount ? payAmount : srcAmount;
+                        src.safeTransferFrom(msg.sender, address(lendingImpl), destAmount);
+                    }
                 } else {
                     // use user debt value if debt is <= payAmount
                     payAmount = checkUserDebt(platform, address(dest), payAmount);
@@ -517,19 +463,18 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             uint256 gasBefore = useGasToken ? gasleft() : 0;
             IERC20Ext dest = IERC20Ext(tradePath[tradePath.length - 1]);
 
+            // use user debt value if debt is <= payAmount
+            // user can pay all debt by putting really high payAmount as param
+            payAmount = checkUserDebt(platform, address(dest), payAmount);
             if (tradePath.length == 1) {
-                // just collect src token, no need to swap
-                destAmount = safeForwardTokenAndCollectFee(
-                    dest,
-                    msg.sender,
-                    payable(address(lendingImpl)),
-                    srcAmount,
-                    0, // no fee if repay directly
-                    platformWallet
-                );
+                if (dest == ETH_TOKEN_ADDRESS) {
+                    require(msg.value >= srcAmount, "invalid msg value");
+                    transferToken(payable(address(lendingImpl)), dest, srcAmount);
+                } else {
+                    destAmount = srcAmount > payAmount ? payAmount : srcAmount;
+                    dest.safeTransferFrom(msg.sender, address(lendingImpl), destAmount);
+                }
             } else {
-                // use user debt value if debt is <= payAmount
-                payAmount = checkUserDebt(platform, address(dest), payAmount);
 
                 destAmount = swapUniswapInternal(
                     router,
@@ -815,7 +760,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         uint256 gasAfter = gasleft();
 
         try
-            burnGasHelper.getAmountGasTokensToBurn(gasBefore.sub(gasAfter) + 16 * msg.data.length)
+            burnGasHelper.getAmountGasTokensToBurn(gasBefore.sub(gasAfter))
         returns (uint256 _gasBurns, address _gasToken) {
             numGasBurns = _gasBurns;
             gasToken = IGasToken(_gasToken);
