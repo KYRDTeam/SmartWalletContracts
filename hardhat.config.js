@@ -2,6 +2,7 @@ require("@nomiclabs/hardhat-truffle5");
 require("@nomiclabs/hardhat-web3");
 require("@nomiclabs/hardhat-ganache");
 require("hardhat-gas-reporter");
+require('solidity-coverage')
 
 require('dotenv').config();
 

@@ -8,25 +8,42 @@ const BPS = new BN(10000);
 const precisionUnits = new BN(10).pow(new BN(18));
 const ethDecimals = new BN(18);
 const ethAddress = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+const wethAddress = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
+const usdtAddress = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
+const usdcAddress = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
+const daiAddress = '0x6b175474e89094c44da98b954eedeac495271d0f';
+const gasTokenAddress = '0x0000000000b3F879cb30FE243b4Dfee438691c04';
+const kyberProxyAddress = '0x9AAb3f75489902f3a48495025729a0AF77d4b11e';
+const uniswapRouter = '0x7a250d5630b4cf539739df2c5dacb4c659f2488d';
+const sushiswapRouter = '0xd9e1ce17f2641f24ae83637ab66a2cca9c378b9f';
+const binanceColdWallet = '0x3f5CE5FBFe3E9af3971dD833D26bA9b5C936f0bE';
 const zeroAddress = constants.ZERO_ADDRESS;
 const emptyHint = '0x';
 const zeroBN = new BN(0);
 const MAX_QTY = new BN(10).pow(new BN(28));
 const MAX_RATE = precisionUnits.mul(new BN(10).pow(new BN(7)));
 const MAX_ALLOWANCE = new BN(2).pow(new BN(256)).sub(new BN(1));
-const binanceColdWallet = '0x3f5CE5FBFe3E9af3971dD833D26bA9b5C936f0bE';
 const AAVE_V1_ADDRESSES = {
   aEthAddress: '0x3a3a65aab0dd2a17e3f1947ba16138cd37d08c04',
   aUsdtAddress: '0x71fc860f7d3a592a4a98740e39db31d25db65ae8',
+  aDaiAddress: '0xfC1E690f61EFd961294b3e1Ce3313fBD8aa4f85d',
   aavePoolV1Address: '0x398eC7346DcD622eDc5ae82352F02bE94C62d119',
   aavePoolCoreV1Address: '0x3dfd23A6c5E8BbcFc9581d2E864a68feb6a076d3',
 };
 const AAVE_V2_ADDRESSES = {
   aWethAddress: '0x030bA81f1c18d280636F32af80b9AAd02Cf0854e',
   aUsdtAddress: '0x3Ed3B47Dd13EC9a98b44e6204A523E766B225811',
+  aDaiAddress: '0x028171bCA77440897B824Ca71D1c56caC55b68A3',
   aavePoolV2Address: '0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9',
   aaveProviderV2Address: '0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d',
 };
+const COMPOUND_ADDRESSES = {
+  cEthAddress: '0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5',
+  cUsdtAddress: '0xf650c3d88d12db855b8bf7d11be6c55a4e07dcc9',
+  cDaiAddress: '0x5d3a536e4d6dbd6114cc1ead35777bab948e3643',
+  comptroller: '0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b',
+};
+const lendingPlatforms = [0, 1, 2];
 
 module.exports = {
   BPS,
@@ -34,6 +51,15 @@ module.exports = {
   ethDecimals,
   ethAddress,
   zeroAddress,
+  kyberProxyAddress,
+  sushiswapRouter,
+  uniswapRouter,
+  lendingPlatforms,
+  gasTokenAddress,
+  daiAddress,
+  usdtAddress,
+  usdcAddress,
+  wethAddress,
   emptyHint,
   zeroBN,
   MAX_QTY,
@@ -41,6 +67,7 @@ module.exports = {
   MAX_ALLOWANCE,
   AAVE_V1_ADDRESSES,
   AAVE_V2_ADDRESSES,
+  COMPOUND_ADDRESSES,
 };
 
 module.exports.evm_snapshot = async function () {
@@ -254,6 +281,10 @@ module.exports.assertTxSuccess = (tx) => {
   expect(tx.receipt.status).to.equal(true);
 };
 
+module.exports.assertTxSuccess = (tx) => {
+  expect(tx.receipt.status).to.equal(true);
+};
+
 // Warn if overriding existing method
 if (Array.prototype.equals)
   console.warn(
@@ -287,8 +318,20 @@ Object.defineProperty(Array.prototype, 'equals', {enumerable: false});
 
 module.exports.assertApproximate = assertApproximate;
 
-module.exports.assertMost = function (val1, val2, errorStr) {
+module.exports.assertGreater = function (val1, val2, errorStr) {
+  assert(new BN(val1).should.be.a.bignumber.that.is.greaterThan(new BN(val2)), errorStr);
+};
+
+module.exports.assertGreaterOrEqual = function (val1, val2) {
+  assert(new BN(val1).should.be.a.bignumber.that.is.least(new BN(val2)));
+};
+
+module.exports.assertLessOrEqual = function (val1, val2, errorStr) {
   assert(new BN(val1).should.be.a.bignumber.that.is.most(new BN(val2)), errorStr);
+};
+
+module.exports.assertLesser = function (val1, val2, errorStr) {
+  assert(new BN(val1).should.be.a.bignumber.that.is.lessThan(new BN(val2)), errorStr);
 };
 
 module.exports.assertGreater = function (val1, val2, errorStr) {

@@ -2,19 +2,27 @@ pragma solidity 0.6.6;
 
 
 interface IAaveLendingPoolV1 {
-    function deposit(address _reserve, uint256 _amount, uint16 _referralCode)
-        external
-        payable;
+    function deposit(
+        address _reserve,
+        uint256 _amount,
+        uint16 _referralCode
+    ) external payable;
+
     function borrow(
         address _reserve,
         uint256 _amount,
         uint256 _interestRateMode,
         uint16 _referralCode
-    )
-        external;
-    function repay(address _reserve, uint256 _amount, address payable _onBehalfOf)
-        external
-        payable;
+    ) external;
+
+    function setUserUseReserveAsCollateral(address _reserve, bool _useAsCollateral) external;
+
+    function repay(
+        address _reserve,
+        uint256 _amount,
+        address payable _onBehalfOf
+    ) external payable;
+
     function core() external view returns (address);
 
     function getUserReserveData(address _reserve, address _user)

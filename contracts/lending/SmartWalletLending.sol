@@ -428,6 +428,9 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable {
             (, uint256 stableDebt, uint256 variableDebt, , , , , , ) =
                 provider.getUserReserveData(_reserve, _user);
             debt = stableDebt > 0 ? stableDebt : variableDebt;
+        } else {
+            ICompErc20 cToken = ICompErc20(compoundData.cTokens[IERC20Ext(_reserve)]);
+            debt = cToken.borrowBalanceStored(_user);
         }
     }
 

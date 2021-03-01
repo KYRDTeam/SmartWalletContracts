@@ -84,6 +84,13 @@ interface IAaveLendingPoolV2 {
     ) external returns (uint256);
 
     /**
+     * @dev Allows depositors to enable/disable a specific deposited asset as collateral
+     * @param asset The address of the underlying asset deposited
+     * @param useAsCollateral `true` if the user wants to use the deposit as collateral, `false` otherwise
+     **/
+    function setUserUseReserveAsCollateral(address asset, bool useAsCollateral) external;
+
+    /**
      * @dev Returns the state and configuration of the reserve
      * @param asset The address of the underlying asset of the reserve
      * @return The state of the reserve

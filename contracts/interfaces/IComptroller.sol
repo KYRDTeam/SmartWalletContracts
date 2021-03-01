@@ -12,4 +12,5 @@ interface IComptroller {
         bool borrowers,
         bool suppliers
     ) external;
+    function enterMarkets(address[] calldata cTokens) external returns (uint[] memory);
 }
