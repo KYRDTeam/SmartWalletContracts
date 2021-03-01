@@ -92,7 +92,7 @@ contract('SmartWalletSwapImplementation', (accounts) => {
         AAVE_V1_ADDRESSES.aavePoolCoreV1Address,
         0,
         wethAddress,
-        [ethAddress, usdtAddress],
+        [ethAddress, wethAddress, usdtAddress],
         {from: admin}
       );
 

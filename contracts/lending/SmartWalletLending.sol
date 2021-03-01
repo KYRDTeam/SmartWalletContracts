@@ -373,7 +373,10 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable {
             if (token == ETH_TOKEN_ADDRESS) {
                 ICompEth(cToken).repayBorrowBehalf{value: payAmount}(onBehalfOf);
             } else {
-                require(ICompErc20(cToken).repayBorrowBehalf(onBehalfOf, payAmount) == 0, "compound repay error");
+                require(
+                    ICompErc20(cToken).repayBorrowBehalf(onBehalfOf, payAmount) == 0,
+                    "compound repay error"
+                );
             }
         }
     }
@@ -416,8 +419,10 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable {
         address _user
     ) external view override returns (uint256 debt) {
         if (platform == LendingPlatform.AAVE_V1) {
+            uint256 originationFee;
             IAaveLendingPoolV1 pool = aaveLendingPool.lendingPoolV1;
-            (, debt, , , , , , , , ) = pool.getUserReserveData(_reserve, _user);
+            (, debt, , , , , originationFee, , , ) = pool.getUserReserveData(_reserve, _user);
+            debt = debt.add(originationFee);
         } else if (platform == LendingPlatform.AAVE_V2) {
             IProtocolDataProvider provider = aaveLendingPool.provider;
             (, uint256 stableDebt, uint256 variableDebt, , , , , , ) =
@@ -427,7 +432,7 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable {
     }
 
     function safeApproveAllowance(address spender, IERC20Ext token) internal {
-        if (token.allowance(address(this), spender) == 0) {
+        if (token != ETH_TOKEN_ADDRESS && token.allowance(address(this), spender) == 0) {
             token.safeApprove(spender, MAX_ALLOWANCE);
         }
     }

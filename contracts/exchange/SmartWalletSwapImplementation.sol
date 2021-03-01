@@ -585,7 +585,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             return amount;
         }
 
-        return debt.add(1e11); // add small excess due to accruing interest
+        return debt;
     }
 
     function doKyberTrade(
