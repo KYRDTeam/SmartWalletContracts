@@ -61,6 +61,15 @@ interface ISmartWalletSwapImplementation {
         uint256 numGasBurns
     );
 
+    event BorrowFromLending(
+        ISmartWalletLending.LendingPlatform indexed platform,
+        IERC20Ext token,
+        uint256 amountBorrowed,
+        uint256 interestRateMode,
+        bool useGasToken,
+        uint256 numGasBurns
+    );
+
     event WithdrawFromLending(
         ISmartWalletLending.LendingPlatform indexed platform,
         IERC20Ext token,
@@ -208,7 +217,7 @@ interface ISmartWalletSwapImplementation {
     ) external;
 
     function claimPlatformFees(
-        address[] calldata plaftformWallets,
+        address[] calldata platformWallets,
         IERC20Ext[] calldata tokens
     ) external;
 }

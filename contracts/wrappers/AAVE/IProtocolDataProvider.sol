@@ -54,4 +54,17 @@ interface IProtocolDataProvider {
         address stableDebtTokenAddress,
         address variableDebtTokenAddress
     );
+  function calculateUserGlobalData(address _user)
+    external
+    view
+    returns (
+        uint256 totalLiquidityBalanceETH,
+        uint256 totalCollateralBalanceETH,
+        uint256 totalBorrowBalanceETH,
+        uint256 totalFeesETH,
+        uint256 currentLtv,
+        uint256 currentLiquidationThreshold,
+        uint256 healthFactor,
+        bool healthFactorBelowThreshold
+    );
 }

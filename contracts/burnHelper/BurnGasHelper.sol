@@ -22,8 +22,7 @@ contract BurnGasHelper is IBurnGasHelper, Utils, Withdrawable {
     }
 
     function getAmountGasTokensToBurn(
-        uint gasConsumption,
-        bytes calldata // data
+        uint256 gasTotalConsumption
     ) external override view returns(uint numGas, address gasToken) {
 
         gasToken = gasTokenAddr;
@@ -33,7 +32,7 @@ contract BurnGasHelper is IBurnGasHelper, Utils, Withdrawable {
             safeNumTokens = (gas - 27710) / 7020; // (1148 + 5722 + 150);
         }
 
-        uint256 gasSpent = 21000 + 16 * msg.data.length + gas - gasConsumption;
+        uint256 gasSpent = 21000 + 16 * msg.data.length + gasTotalConsumption;
         numGas = (gasSpent + 14154) / 41947;
 
         numGas = minOf(safeNumTokens, numGas);

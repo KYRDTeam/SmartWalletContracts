@@ -1,4 +1,5 @@
 pragma solidity 0.6.6;
+pragma experimental ABIEncoderV2;
 
 import "@kyber.network/utils-sc/contracts/IERC20Ext.sol";
 import "../interfaces/IAaveLendingPoolV2.sol";
@@ -18,8 +19,28 @@ interface ISmartWalletLending {
 
     enum LendingPlatform { AAVE_V1, AAVE_V2, COMPOUND }
 
+    struct UserReserveData {
+        uint256 currentATokenBalance;
+        uint256 liquidityRate;
+        uint256 poolShareInPrecision;
+        bool usageAsCollateralEnabled;
+        // Aave v1 data
+        uint256 currentBorrowBalance;
+        uint256 principalBorrowBalance;
+        uint256 borrowRateMode;
+        uint256 borrowRate;
+        uint256 originationFee;
+        // Aave v2 data
+        uint256 currentStableDebt;
+        uint256 currentVariableDebt;
+        uint256 principalStableDebt;
+        uint256 scaledVariableDebt;
+        uint256 stableBorrowRate;
+    }
+
     function updateAaveLendingPoolData(
         IAaveLendingPoolV2 poolV2,
+        IProtocolDataProvider provider,
         IAaveLendingPoolV1 poolV1,
         address lendingPoolCoreV1,
         uint16 referalCode,
@@ -28,7 +49,7 @@ interface ISmartWalletLending {
     ) external;
 
     function updateCompoundData(
-        address _comToken,
+        address _comptroller,
         address _cEth,
         address[] calldata _cTokens
     ) external;
@@ -38,6 +59,14 @@ interface ISmartWalletLending {
         address payable onBehalfOf,
         IERC20Ext token,
         uint256 amount
+    ) external;
+
+    function borrowFrom(
+        LendingPlatform platform,
+        address payable onBehalfOf,
+        IERC20Ext token,
+        uint256 borrowAmount,
+        uint256 interestRateMode
     ) external;
 
     function withdrawFrom(
@@ -56,7 +85,7 @@ interface ISmartWalletLending {
         uint256 payAmount,
         uint256 rateMode // only for aave v2
     ) external;
-
+    
     function claimComp(
         address[] calldata holders,
         ICompErc20[] calldata cTokens,
@@ -65,4 +94,9 @@ interface ISmartWalletLending {
     ) external;
 
     function getLendingToken(LendingPlatform platform, IERC20Ext token) external view returns(address);
+
+    function getUserDebt(LendingPlatform platform, address reserve, address user)
+        external
+        view
+        returns (uint256 debt);
 }

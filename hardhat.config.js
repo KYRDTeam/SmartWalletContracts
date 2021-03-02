@@ -1,11 +1,18 @@
 require("@nomiclabs/hardhat-truffle5");
 require("@nomiclabs/hardhat-web3");
 require("@nomiclabs/hardhat-ganache");
+require("hardhat-gas-reporter");
+require('solidity-coverage')
 
 require('dotenv').config();
 
 module.exports = {
   defaultNetwork: "hardhat",
+
+  gasReporter: {
+    currency: 'USD',
+    gasPrice: 100
+  },
 
   networks: {
     develop: {
@@ -16,6 +23,7 @@ module.exports = {
     hardhat: {
       forking: {
         url: process.env.NODE_URL
+        // url: 'http://localhost:8545'
       },
       accounts: [
         // 20 accounts with 10^14 ETH each 
