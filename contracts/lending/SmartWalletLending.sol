@@ -362,9 +362,15 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable {
             if (token == ETH_TOKEN_ADDRESS) {
                 IWeth weth = aaveLendingPool.weth;
                 weth.deposit{value: payAmount}();
-                poolV2.repay(address(weth), payAmount, rateMode, onBehalfOf);
+                require(
+                    poolV2.repay(address(weth), payAmount, rateMode, onBehalfOf) == payAmount,
+                    "wrong paid amount"
+                );
             } else {
-                poolV2.repay(address(token), payAmount, rateMode, onBehalfOf);
+                require(
+                    poolV2.repay(address(token), payAmount, rateMode, onBehalfOf) == payAmount,
+                    "wrong paid amount"
+                );
             }
         } else {
             // compound

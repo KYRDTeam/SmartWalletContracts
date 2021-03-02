@@ -44,21 +44,21 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         emit UpdatedSupportedPlatformWallets(wallets, isSupported);
     }
 
-    function claimPlatformFees(address[] calldata plaftformWallets, IERC20Ext[] calldata tokens)
+    function claimPlatformFees(address[] calldata platformWallets, IERC20Ext[] calldata tokens)
         external
         override
         nonReentrant
     {
-        for (uint256 i = 0; i < plaftformWallets.length; i++) {
+        for (uint256 i = 0; i < platformWallets.length; i++) {
             for (uint256 j = 0; j < tokens.length; j++) {
-                uint256 fee = platformWalletFees[plaftformWallets[i]][tokens[j]];
+                uint256 fee = platformWalletFees[platformWallets[i]][tokens[j]];
                 if (fee > 1) {
-                    platformWalletFees[plaftformWallets[i]][tokens[j]] = 0;
-                    transferToken(payable(plaftformWallets[i]), tokens[j], fee - 1);
+                    platformWalletFees[platformWallets[i]][tokens[j]] = 1;
+                    transferToken(payable(platformWallets[i]), tokens[j], fee - 1);
                 }
             }
         }
-        emit ClaimedPlatformFees(plaftformWallets, tokens, msg.sender);
+        emit ClaimedPlatformFees(platformWallets, tokens, msg.sender);
     }
 
     function approveAllowances(
@@ -381,7 +381,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                 payAmount = checkUserDebt(platform, address(dest), payAmount);
                 if (src == dest) {
                     if (src == ETH_TOKEN_ADDRESS) {
-                        require(msg.value >= srcAmount, "invalid msg value");
+                        require(msg.value == srcAmount, "invalid msg value");
                         transferToken(payable(address(lendingImpl)), src, srcAmount);
                     } else {
                         destAmount = srcAmount > payAmount ? payAmount : srcAmount;
@@ -468,7 +468,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             payAmount = checkUserDebt(platform, address(dest), payAmount);
             if (tradePath.length == 1) {
                 if (dest == ETH_TOKEN_ADDRESS) {
-                    require(msg.value >= srcAmount, "invalid msg value");
+                    require(msg.value == srcAmount, "invalid msg value");
                     transferToken(payable(address(lendingImpl)), dest, srcAmount);
                 } else {
                     destAmount = srcAmount > payAmount ? payAmount : srcAmount;

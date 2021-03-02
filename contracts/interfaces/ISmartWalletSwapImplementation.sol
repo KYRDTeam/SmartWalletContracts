@@ -217,7 +217,7 @@ interface ISmartWalletSwapImplementation {
     ) external;
 
     function claimPlatformFees(
-        address[] calldata plaftformWallets,
+        address[] calldata platformWallets,
         IERC20Ext[] calldata tokens
     ) external;
 }
