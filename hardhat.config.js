@@ -2,19 +2,29 @@ require("@nomiclabs/hardhat-truffle5");
 require("@nomiclabs/hardhat-web3");
 require("@nomiclabs/hardhat-ganache");
 require("@nomiclabs/hardhat-etherscan");
+require('hardhat-contract-sizer');
 require("hardhat-gas-reporter");
 require('solidity-coverage');
 
 require('dotenv').config();
 
+// Hardhat Tasks
+require('./deployment/mainnet/mainnetDeployer');
+
 module.exports = {
+  contractSizer: {
+    alphaSort: false,
+    runOnCompile: true,
+    disambiguatePaths: false,
+  },
+
   defaultNetwork: "hardhat",
 
   gasReporter: {
     currency: 'USD',
     gasPrice: 100
   },
-
+  
   networks: {
     develop: {
       url: "http://127.0.0.1:8645",
