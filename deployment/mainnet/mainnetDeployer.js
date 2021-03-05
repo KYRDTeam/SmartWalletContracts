@@ -87,7 +87,7 @@ task('deploy', 'Deploys the SmartWallet contracts').setAction(async () => {
   const [deployer] = await ethers.getSigners();
   const deployerAddress = await deployer.getAddress();
   const deployContracts = [
-    'BurnGasHelper',
+    // 'BurnGasHelper',
     'SmartWalletLending',
     'SmartWalletSwapImplementation',
     'SmartWalletSwapProxy',
@@ -147,7 +147,7 @@ task('deploy', 'Deploys the SmartWallet contracts').setAction(async () => {
   // Update BurnGasHelper
   console.log(`   ${parseInt(step) + 1}.  updateBurnGasHelper`);
   console.log('   ------------------------------------');
-  tx = await instance.updateBurnGasHelper(ADDRESSES['BurnGasHelper'], {
+  tx = await instance.updateBurnGasHelper(0, {
     gasLimit,
   });
   printInfo(tx);
