@@ -11,11 +11,14 @@
     "t": "./tst.sh",
     "compile": "./cmp.sh",
     "c": "./cmp.sh",
-    "prettier": "./node_modules/.bin/prettier --write"
+    "deploy": "yarn hardhat deploy",
+    "prettier": "./node_modules/.bin/prettier --write",
+    "size": "yarn run hardhat size-contracts",
+    "s": "yarn run hardhat size-contracts"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/KyberNetwork/smart-contracts.git"
+    "url": "git+https://github.com/KyberSwap/SmartWalletContracts.git"
   },
   "author": "",
   "license": "ISC",
@@ -29,7 +32,7 @@
     "chai-as-promised": "7.1.1",
     "compare-versions": "3.6.0",
     "dotenv": "^8.2.0",
-    "ethers": "5.0.26",
+    "ethers": "^5.0.31",
     "ganache-cli": "6.12.2",
     "mathjs": "9.0.0",
     "rlp": "2.2.6",
@@ -45,6 +48,7 @@
     "yargs": "16.2.0"
   },
   "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-etherscan": "^2.0.1",
     "@nomiclabs/hardhat-ganache": "2.0.0",
     "@nomiclabs/hardhat-truffle5": "2.0.0",
@@ -55,6 +59,7 @@
     "chai-bn": "0.2.1",
     "got": "^11.8.1",
     "hardhat": "2.0.8",
+    "hardhat-contract-sizer": "^2.0.3",
     "hardhat-gas-reporter": "^1.0.4",
     "mv": "2.1.1",
     "prettier": "2.2.1",
