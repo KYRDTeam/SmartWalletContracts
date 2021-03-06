@@ -578,8 +578,8 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         ISmartWalletLending.LendingPlatform platform,
         address token,
         uint256 amount
-    ) internal view returns (uint256) {
-        uint256 debt = lendingImpl.getUserDebt(platform, token, msg.sender);
+    ) internal returns (uint256) {
+        uint256 debt = lendingImpl.storeAndRetrieveUserDebtCurrent(platform, token, msg.sender);
 
         if (debt >= amount) {
             return amount;
