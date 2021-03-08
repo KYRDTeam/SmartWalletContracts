@@ -93,9 +93,15 @@ interface ISmartWalletLending {
         bool suppliers
     ) external;
 
+    function storeAndRetrieveUserDebtCurrent(
+        LendingPlatform platform,
+        address _reserve,
+        address _user
+    ) external returns (uint256 debt);
+
     function getLendingToken(LendingPlatform platform, IERC20Ext token) external view returns(address);
 
-    function getUserDebt(LendingPlatform platform, address reserve, address user)
+    function getUserDebtStored(LendingPlatform platform, address reserve, address user)
         external
         view
         returns (uint256 debt);
