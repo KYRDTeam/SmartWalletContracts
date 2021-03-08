@@ -475,7 +475,6 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
                     dest.safeTransferFrom(msg.sender, address(lendingImpl), destAmount);
                 }
             } else {
-
                 destAmount = swapUniswapInternal(
                     router,
                     srcAmount,
@@ -578,8 +577,8 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         ISmartWalletLending.LendingPlatform platform,
         address token,
         uint256 amount
-    ) internal view returns (uint256) {
-        uint256 debt = lendingImpl.getUserDebt(platform, token, msg.sender);
+    ) internal returns (uint256) {
+        uint256 debt = lendingImpl.storeAndRetrieveUserDebtCurrent(platform, token, msg.sender);
 
         if (debt >= amount) {
             return amount;
@@ -760,7 +759,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         uint256 gasAfter = gasleft();
 
         try
-            burnGasHelper.getAmountGasTokensToBurn(gasBefore.sub(gasAfter))
+            burnGasHelper.getAmountGasTokensToBurn(gasBefore.sub(gasAfter).add(msg.data.length))
         returns (uint256 _gasBurns, address _gasToken) {
             numGasBurns = _gasBurns;
             gasToken = IGasToken(_gasToken);

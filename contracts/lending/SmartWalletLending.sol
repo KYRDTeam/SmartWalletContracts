@@ -419,11 +419,30 @@ contract SmartWalletLending is ISmartWalletLending, Utils, Withdrawable {
         return compoundData.cTokens[token];
     }
 
-    function getUserDebt(
+    /** @dev Calculate the current user debt and return
+    */
+    function storeAndRetrieveUserDebtCurrent(
         LendingPlatform platform,
         address _reserve,
         address _user
-    ) external view override returns (uint256 debt) {
+    ) external override returns (uint256 debt) {
+        if (platform == LendingPlatform.AAVE_V1 || platform == LendingPlatform.AAVE_V2) {
+            debt = getUserDebtStored(platform, _reserve, _user);
+            return debt;
+        }
+        ICompErc20 cToken = ICompErc20(compoundData.cTokens[IERC20Ext(_reserve)]);
+        debt = cToken.borrowBalanceCurrent(_user);
+    }
+
+    /** @dev Return the stored user debt from given platform
+    *   to get the latest data of user's debt for repaying, should call
+    *   storeAndRetrieveUserDebtCurrent function, esp for Compound platform
+    */
+    function getUserDebtStored(
+        LendingPlatform platform,
+        address _reserve,
+        address _user
+    ) public view override returns (uint256 debt) {
         if (platform == LendingPlatform.AAVE_V1) {
             uint256 originationFee;
             IAaveLendingPoolV1 pool = aaveLendingPool.lendingPoolV1;
