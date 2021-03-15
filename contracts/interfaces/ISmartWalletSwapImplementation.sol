@@ -1,26 +1,22 @@
-pragma solidity 0.6.6;
+pragma solidity 0.7.6;
 
 import "../lending/ISmartWalletLending.sol";
-import "@kyber.network/utils-sc/contracts/IERC20Ext.sol";
-import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import "../interfaces/IPancakeRouter02.sol";
+import "@kyber.network/utils-sc/contracts/IBEP20.sol";
 
 
 interface ISmartWalletSwapImplementation {
     event KyberTrade(
         address indexed trader,
-        IERC20Ext indexed src,
-        IERC20Ext indexed dest,
+        IBEP20 indexed src,
+        IBEP20 indexed dest,
         uint256 srcAmount,
         uint256 destAmount,
         address recipient,
-        uint256 platformFeeBps,
-        address platformWallet,
-        bytes hint,
-        bool useGasToken,
-        uint numGasBurns
+        address platformWallet
     );
 
-    event UniswapTrade(
+    event PancakeTrade(
         address indexed trader,
         address indexed router,
         address[] tradePath,
@@ -29,99 +25,80 @@ interface ISmartWalletSwapImplementation {
         address recipient,
         uint256 platformFeeBps,
         address platformWallet,
-        bool feeInSrc,
-        bool useGasToken,
-        uint256 numGasBurns
+        bool feeInSrc
     );
 
     event KyberTradeAndDeposit(
         address indexed trader,
         ISmartWalletLending.LendingPlatform indexed platform,
-        IERC20Ext src,
-        IERC20Ext indexed dest,
+        IBEP20 src,
+        IBEP20 indexed dest,
         uint256 srcAmount,
         uint256 destAmount,
         uint256 platformFeeBps,
-        address platformWallet,
-        bytes hint,
-        bool useGasToken,
-        uint numGasBurns
+        address platformWallet
     );
 
-    event UniswapTradeAndDeposit(
+    event PancakeTradeAndDeposit(
         address indexed trader,
         ISmartWalletLending.LendingPlatform indexed platform,
-        IUniswapV2Router02 indexed router,
+        IPancakeRouter02 indexed router,
         address[] tradePath,
         uint256 srcAmount,
         uint256 destAmount,
         uint256 platformFeeBps,
-        address platformWallet,
-        bool useGasToken,
-        uint256 numGasBurns
+        address platformWallet
     );
 
     event BorrowFromLending(
         ISmartWalletLending.LendingPlatform indexed platform,
-        IERC20Ext token,
+        IBEP20 token,
         uint256 amountBorrowed,
-        uint256 interestRateMode,
-        bool useGasToken,
-        uint256 numGasBurns
+        uint256 interestRateMode
     );
 
     event WithdrawFromLending(
         ISmartWalletLending.LendingPlatform indexed platform,
-        IERC20Ext token,
+        IBEP20 token,
         uint256 amount,
         uint256 minReturn,
-        uint256 actualReturnAmount,
-        bool useGasToken,
-        uint256 numGasBurns
+        uint256 actualReturnAmount
     );
 
     event KyberTradeAndRepay(
         address indexed trader,
         ISmartWalletLending.LendingPlatform indexed platform,
-        IERC20Ext src,
-        IERC20Ext indexed dest,
+        IBEP20 src,
+        IBEP20 indexed dest,
         uint256 srcAmount,
         uint256 destAmount,
         uint256 payAmount,
-        uint256 feeAndRateMode,
-        address platformWallet,
-        bytes hint,
-        bool useGasToken,
-        uint numGasBurns
+        address platformWallet
     );
 
-    event UniswapTradeAndRepay(
+    event PancakeTradeAndRepay(
         address indexed trader,
         ISmartWalletLending.LendingPlatform indexed platform,
-        IUniswapV2Router02 indexed router,
+        IPancakeRouter02 indexed router,
         address[] tradePath,
         uint256 srcAmount,
         uint256 destAmount,
         uint256 payAmount,
         uint256 feeAndRateMode,
-        address platformWallet,
-        bool useGasToken,
-        uint256 numGasBurns
+        address platformWallet
     );
 
     function getExpectedReturnKyber(
-        IERC20Ext src,
-        IERC20Ext dest,
-        uint256 srcAmount,
-        uint256 platformFeeBps,
-        bytes calldata hint
+        IBEP20 src,
+        IBEP20 dest,
+        uint256 srcAmount
     ) external view returns (
         uint256 destAmount,
         uint256 expectedRate
     );
 
-    function getExpectedReturnUniswap(
-        IUniswapV2Router02 router,
+    function getExpectedReturnPancake(
+        IPancakeRouter02 router,
         uint256 srcAmount,
         address[] calldata tradePath,
         uint256 platformFeeBps
@@ -131,93 +108,73 @@ interface ISmartWalletSwapImplementation {
     );
 
     function swapKyber(
-        IERC20Ext src,
-        IERC20Ext dest,
+        IBEP20 src,
+        IBEP20 dest,
         uint256 srcAmount,
         uint256 minConversionRate,
         address payable recipient,
-        uint256 platformFeeBps,
-        address payable platformWallet,
-        bytes calldata hint,
-        bool useGasToken
+        address payable platformWallet
     ) external payable returns (uint256 destAmount);
 
-    function swapUniswap(
-        IUniswapV2Router02 router,
+    function swapPancake(
+        IPancakeRouter02 router,
         uint256 srcAmount,
         uint256 minDestAmount,
         address[] calldata tradePath,
         address payable recipient,
         uint256 platformFeeBps,
         address payable platformWallet,
-        bool feeInSrc,
-        bool useGasToken
+        bool feeInSrc
     ) external payable returns (uint256 destAmount);
 
     function swapKyberAndDeposit(
         ISmartWalletLending.LendingPlatform platform,
-        IERC20Ext src,
-        IERC20Ext dest,
+        IBEP20 src,
+        IBEP20 dest,
         uint256 srcAmount,
         uint256 minConversionRate,
         uint256 platformFeeBps,
-        address payable platformWallet,
-        bytes calldata hint,
-        bool useGasToken
+        address payable platformWallet
     ) external payable returns (uint256 destAmount);
 
-    function swapUniswapAndDeposit(
+    function swapPancakeAndDeposit(
         ISmartWalletLending.LendingPlatform platform,
-        IUniswapV2Router02 router,
+        IPancakeRouter02 router,
         uint256 srcAmount,
         uint256 minDestAmount,
         address[] calldata tradePath,
         uint256 platformFeeBps,
-        address payable platformWallet,
-        bool useGasToken
+        address payable platformWallet
     ) external payable returns (uint256 destAmount);
 
     function withdrawFromLendingPlatform(
         ISmartWalletLending.LendingPlatform platform,
-        IERC20Ext token,
+        IBEP20 token,
         uint256 amount,
-        uint256 minReturn,
-        bool useGasToken
+        uint256 minReturn
     ) external returns (uint256 returnedAmount);
 
     function swapKyberAndRepay(
         ISmartWalletLending.LendingPlatform platform,
-        IERC20Ext src,
-        IERC20Ext dest,
+        IBEP20 src,
+        IBEP20 dest,
         uint256 srcAmount,
         uint256 payAmount,
-        uint256 feeAndRateMode, // in case aave v2, fee: feeAndRateMode % BPS, rateMode: feeAndRateMode / BPS
-        address payable platformWallet,
-        bytes calldata hint,
-        bool useGasToken
+        address payable platformWallet
     ) external payable returns (uint256 destAmount);
 
-    function swapUniswapAndRepay(
+    function swapPancakeAndRepay(
         ISmartWalletLending.LendingPlatform platform,
-        IUniswapV2Router02 router,
+        IPancakeRouter02 router,
         uint256 srcAmount,
         uint256 payAmount,
         address[] calldata tradePath,
-        uint256 feeAndRateMode, // in case aave v2, fee: feeAndRateMode % BPS, rateMode: feeAndRateMode / BPS
-        address payable platformWallet,
-        bool useGasToken
+        uint256 feeAndRateMode, // fee: feeAndRateMode % BPS, rateMode: feeAndRateMode / BPS
+        address payable platformWallet
     ) external payable returns (uint256 destAmount);
-
-    function claimComp(
-        address[] calldata holders,
-        ICompErc20[] calldata cTokens,
-        bool borrowers,
-        bool suppliers,
-        bool useGasToken
-    ) external;
 
     function claimPlatformFees(
         address[] calldata platformWallets,
-        IERC20Ext[] calldata tokens
+        IBEP20[] calldata tokens
     ) external;
 }

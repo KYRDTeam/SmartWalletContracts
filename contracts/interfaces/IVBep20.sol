@@ -1,7 +1,7 @@
 pragma solidity 0.7.6;
 
 
-interface ICompErc20 {
+interface IVBep20 {
     function mint(uint mintAmount) external returns (uint);
     function redeem(uint redeemTokens) external returns (uint);
     function redeemUnderlying(uint redeemAmount) external returns (uint);
@@ -24,7 +24,7 @@ interface ICompErc20 {
     function underlying() external view returns (address);
 }
 
-interface ICompEth {
+interface IVBnb {
     function mint() external payable;
     function repayBorrowBehalf(address borrower) external payable;
     function repayBorrow() external payable;

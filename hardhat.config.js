@@ -9,7 +9,7 @@ require('solidity-coverage');
 require('dotenv').config();
 
 // Hardhat Tasks
-require('./deployment/mainnet/mainnetDeployer');
+require('./deployment/mainnet/bscTestnetDeployer');
 
 module.exports = {
   contractSizer: {
@@ -33,7 +33,8 @@ module.exports = {
     },
     hardhat: {
       forking: {
-        url: process.env.NODE_URL
+        url: "https://bsc-dataseed.binance.org/",
+        chainId: 56
         // url: 'http://localhost:8545'
       },
       accounts: [
@@ -165,17 +166,7 @@ module.exports = {
 
   solidity: {
     compilers: [{
-      version: "0.4.18",
-      settings: {
-        optimizer: require("./solcOptimiserSettings.js")
-      }
-    }, {
-      version: "0.5.11",
-      settings: {
-        optimizer: require("./solcOptimiserSettings.js")
-      }
-    }, {
-      version: "0.6.6",
+      version: "0.7.6",
       settings: {
         optimizer: require("./solcOptimiserSettings.js")
       }
@@ -194,34 +185,24 @@ module.exports = {
   etherscan: {
     // Your API key for Etherscan
     // Obtain one at https://etherscan.io/
-    apiKey: process.env.ETHERSCAN_KEY
+    apiKey: process.env.BSCSCAN_KEY
   }
 };
 
-const INFURA_API_KEY = process.env.INFURA_API_KEY;
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
-if (INFURA_API_KEY != undefined && PRIVATE_KEY != undefined) {
-  module.exports.networks.kovan = {
-    url: `https://kovan.infura.io/v3/${INFURA_API_KEY}`,
-    accounts: [PRIVATE_KEY],
-    timeout: 20000
-  };
-
-  module.exports.networks.rinkeby = {
-    url: `https://rinkeby.infura.io/v3/${INFURA_API_KEY}`,
-    accounts: [PRIVATE_KEY],
-    timeout: 20000
-  };
-
-  module.exports.networks.ropsten = {
-    url: `https://ropsten.infura.io/v3/${INFURA_API_KEY}`,
+if (PRIVATE_KEY != undefined) {
+  module.exports.networks.testnet = {
+    url: "https://data-seed-prebsc-1-s1.binance.org:8545",
+    chainId: 97,
+    gasPrice: 20000000000,
     accounts: [PRIVATE_KEY],
     timeout: 20000
   };
 
   module.exports.networks.mainnet = {
-    url: `https://mainnet.infura.io/v3/${INFURA_API_KEY}`,
+    url: "https://bsc-dataseed.binance.org/",
+    chainId: 56,
     accounts: [PRIVATE_KEY],
     timeout: 20000
   };

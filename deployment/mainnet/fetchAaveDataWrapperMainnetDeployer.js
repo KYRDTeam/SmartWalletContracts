@@ -2,7 +2,7 @@ const artifacts = require('hardhat').artifacts
 const BN = web3.utils.BN;
 
 const FetchAaveDataWrapper = artifacts.require('FetchAaveDataWrapper.sol');
-const LendingPool = artifacts.require('ILendingPool.sol');
+const LendingPool = artifacts.require('ILendingPoolV1.sol');
 
 let fetchDataWrapper;
 let fetchDataWrapperAddr;
@@ -16,7 +16,7 @@ async function main() {
   deployer = accounts[0];
   console.log(`Deployer address at ${deployer}`);
 
-  gasPrice = new BN(2).mul(new BN(10).pow(new BN(9)));
+  gasPrice = new BN(110).mul(new BN(10).pow(new BN(9)));
   console.log(`Sending transactions with gas price: ${gasPrice.toString(10)} (${gasPrice.div(new BN(10).pow(new BN(9))).toString(10)} gweis)`);
 
   // let lendingPool = await LendingPool.at(mainnetLendingPool);

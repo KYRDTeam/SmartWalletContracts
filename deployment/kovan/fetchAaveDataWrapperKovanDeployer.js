@@ -6,11 +6,11 @@ const LendingPoolV1 = artifacts.require('ILendingPoolV1.sol');
 const LendingPoolV2 = artifacts.require('ILendingPoolV2.sol');
 
 let fetchDataWrapper;
-let fetchDataWrapperAddr = '0x6d39Cff1Ef97c8F1E70D711e526e858A201315CD';
+let fetchDataWrapperAddr;
 
 let kovanLendingPoolV1 = '0x580D4Fdc4BF8f9b5ae2fb9225D584fED4AD5375c';
-let kovanLendingPoolV2 = '0x9FE532197ad76c5a68961439604C037EB79681F0';
-let kovanProtocolDataProvider = '0x744C1aaA95232EeF8A9994C4E0b3a89659D9AB79';
+let kovanLendingPoolV2 = '0xE0fBa4Fc209b4948668006B2bE61711b7f465bAe';
+let kovanProtocolDataProvider = '0x3c73A5E5785cAC854D468F727c606C07488a29D6';
 
 let deployer;
 

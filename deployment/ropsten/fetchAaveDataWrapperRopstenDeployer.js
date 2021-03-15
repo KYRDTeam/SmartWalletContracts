@@ -2,7 +2,7 @@ const artifacts = require('hardhat').artifacts
 const BN = web3.utils.BN;
 
 const FetchAaveDataWrapper = artifacts.require('FetchAaveDataWrapper.sol');
-const LendingPool = artifacts.require('ILendingPool.sol');
+const LendingPool = artifacts.require('ILendingPoolV1.sol');
 
 let fetchDataWrapper;
 let fetchDataWrapperAddr;

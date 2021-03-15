@@ -1,27 +1,22 @@
-pragma solidity 0.6.6;
+pragma solidity 0.7.6;
 
-import "@kyber.network/utils-sc/contracts/IERC20Ext.sol";
+import "@kyber.network/utils-sc/contracts/IBEP20.sol";
 
 
 interface IKyberProxy {
 
-    function tradeWithHintAndFee(
-        IERC20 src,
+    function trade(
+        IBEP20 src,
         uint256 srcAmount,
-        IERC20 dest,
+        IBEP20 destToken,
         address payable destAddress,
-        uint256 maxDestAmount,
-        uint256 minConversionRate,
-        address payable platformWallet,
-        uint256 platformFeeBps,
-        bytes calldata hint
+        uint256 conversionRate
     ) external payable returns (uint256 destAmount);
 
-    function getExpectedRateAfterFee(
-        IERC20 src,
-        IERC20 dest,
+    function getConversionRate(
+        IBEP20 src,
+        IBEP20 dest,
         uint256 srcQty,
-        uint256 platformFeeBps,
-        bytes calldata hint
-    ) external view returns (uint256 expectedRate);
+        uint256 blockNumber
+    ) external view returns (uint256);
 }
