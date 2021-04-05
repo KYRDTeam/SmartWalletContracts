@@ -191,13 +191,11 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         uint256 gasBefore = useGasToken ? gasleft() : 0;
         if (src == dest) {
             // just collect src token, no need to swap
-            destAmount = safeForwardTokenAndCollectFee(
+            destAmount = safeForwardTokenToLending(
                 src,
                 msg.sender,
                 payable(address(lendingImpl)),
-                srcAmount,
-                platformFeeBps,
-                platformWallet
+                srcAmount
             );
         } else {
             destAmount = doKyberTrade(
@@ -261,13 +259,11 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
             IERC20Ext dest = IERC20Ext(tradePath[tradePath.length - 1]);
             if (tradePath.length == 1) {
                 // just collect src token, no need to swap
-                destAmount = safeForwardTokenAndCollectFee(
+                destAmount = safeForwardTokenToLending(
                     dest,
                     msg.sender,
                     payable(address(lendingImpl)),
-                    srcAmount,
-                    platformFeeBps,
-                    platformWallet
+                    srcAmount
                 );
             } else {
                 destAmount = swapUniswapInternal(
@@ -772,29 +768,22 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         }
     }
 
-    function safeForwardTokenAndCollectFee(
+    function safeForwardTokenToLending(
         IERC20Ext token,
         address from,
         address payable to,
-        uint256 amount,
-        uint256 platformFeeBps,
-        address payable platformWallet
+        uint256 amount
     ) internal returns (uint256 destAmount) {
-        require(platformFeeBps < BPS, "high platform fee");
-        require(supportedPlatformWallets[platformWallet], "unsupported platform wallet");
-        uint256 feeAmount = (amount * platformFeeBps) / BPS;
-        destAmount = amount - feeAmount;
         if (token == ETH_TOKEN_ADDRESS) {
-            require(msg.value >= amount);
-            (bool success, ) = to.call{value: destAmount}("");
+            require(msg.value >= amount, "low msg value");
+            (bool success, ) = to.call{value: amount}("");
             require(success, "transfer eth failed");
+            destAmount = amount;
         } else {
             uint256 balanceBefore = token.balanceOf(to);
             token.safeTransferFrom(from, to, amount);
-            uint256 balanceAfter = token.balanceOf(to);
-            destAmount = balanceAfter.sub(balanceBefore);
+            destAmount = token.balanceOf(to).sub(balanceBefore);
         }
-        addFeeToPlatform(platformWallet, token, feeAmount);
     }
 
     function addFeeToPlatform(
