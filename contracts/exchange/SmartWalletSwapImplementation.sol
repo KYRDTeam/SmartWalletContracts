@@ -50,8 +50,7 @@ contract SmartWalletSwapImplementation is SmartWalletSwapStorage, ISmartWalletSw
         nonReentrant
     {
         for (uint256 i = 0; i < platformWallets.length; i++) {
-            for (uint256 j = 0; j < tokens.length; 
-            j++) {
+            for (uint256 j = 0; j < tokens.length; j++) {
                 uint256 fee = platformWalletFees[platformWallets[i]][tokens[j]];
                 if (fee > 1) {
                     platformWalletFees[platformWallets[i]][tokens[j]] = 1;
